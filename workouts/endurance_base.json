@@ -1,0 +1,9 @@
+{
+  "name": "Endurance Base",
+  "description": "60 min steady Z2 – aerobic base building",
+  "intervals": [
+    { "duration": 600,  "power_pct": 0.55, "name": "Warm Up" },
+    { "duration": 3000, "power_pct": 0.68, "name": "Endurance" },
+    { "duration": 600,  "power_pct": 0.50, "name": "Cool Down" }
+  ]
+}

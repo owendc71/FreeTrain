@@ -1,0 +1,20 @@
+{
+  "name": "VO2 Max Intervals",
+  "description": "6×3 min at 115% FTP – aerobic ceiling work",
+  "intervals": [
+    { "duration": 600,  "power_pct": 0.55, "name": "Warm Up" },
+    { "duration": 300,  "power_pct": 0.80, "name": "Build" },
+    { "duration": 180,  "power_pct": 1.15, "name": "VO2 1" },
+    { "duration": 180,  "power_pct": 0.55, "name": "Rest" },
+    { "duration": 180,  "power_pct": 1.15, "name": "VO2 2" },
+    { "duration": 180,  "power_pct": 0.55, "name": "Rest" },
+    { "duration": 180,  "power_pct": 1.15, "name": "VO2 3" },
+    { "duration": 180,  "power_pct": 0.55, "name": "Rest" },
+    { "duration": 180,  "power_pct": 1.15, "name": "VO2 4" },
+    { "duration": 180,  "power_pct": 0.55, "name": "Rest" },
+    { "duration": 180,  "power_pct": 1.15, "name": "VO2 5" },
+    { "duration": 180,  "power_pct": 0.55, "name": "Rest" },
+    { "duration": 180,  "power_pct": 1.15, "name": "VO2 6" },
+    { "duration": 600,  "power_pct": 0.50, "name": "Cool Down" }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "name": "Sweet Spot Intervals",
+  "description": "3×15 min at 88% FTP – the best bang-for-buck training zone",
+  "intervals": [
+    { "duration": 600,  "power_pct": 0.55, "name": "Warm Up" },
+    { "duration": 300,  "power_pct": 0.70, "name": "Build" },
+    { "duration": 900,  "power_pct": 0.88, "name": "Sweet Spot 1" },
+    { "duration": 300,  "power_pct": 0.55, "name": "Recovery" },
+    { "duration": 900,  "power_pct": 0.88, "name": "Sweet Spot 2" },
+    { "duration": 300,  "power_pct": 0.55, "name": "Recovery" },
+    { "duration": 900,  "power_pct": 0.88, "name": "Sweet Spot 3" },
+    { "duration": 600,  "power_pct": 0.50, "name": "Cool Down" }
+  ]
+}

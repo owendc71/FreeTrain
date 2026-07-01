@@ -1,0 +1,16 @@
+{
+  "name": "Threshold Intervals",
+  "description": "4×8 min at 100% FTP – classic lactate threshold work",
+  "intervals": [
+    { "duration": 600,  "power_pct": 0.55, "name": "Warm Up" },
+    { "duration": 300,  "power_pct": 0.75, "name": "Ramp" },
+    { "duration": 480,  "power_pct": 1.00, "name": "Threshold 1" },
+    { "duration": 240,  "power_pct": 0.55, "name": "Recovery" },
+    { "duration": 480,  "power_pct": 1.00, "name": "Threshold 2" },
+    { "duration": 240,  "power_pct": 0.55, "name": "Recovery" },
+    { "duration": 480,  "power_pct": 1.00, "name": "Threshold 3" },
+    { "duration": 240,  "power_pct": 0.55, "name": "Recovery" },
+    { "duration": 480,  "power_pct": 1.00, "name": "Threshold 4" },
+    { "duration": 600,  "power_pct": 0.50, "name": "Cool Down" }
+  ]
+}

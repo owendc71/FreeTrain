@@ -1,0 +1,41 @@
+{
+  "name": "Threshold",
+  "description": "",
+  "intervals": [
+    {
+      "duration": 300,
+      "power_pct": 0.5,
+      "name": "Warm Up"
+    },
+    {
+      "duration": 600,
+      "power_pct": 0.95,
+      "name": ""
+    },
+    {
+      "duration": 300,
+      "power_pct": 0.5,
+      "name": ""
+    },
+    {
+      "duration": 600,
+      "power_pct": 0.95,
+      "name": ""
+    },
+    {
+      "duration": 300,
+      "power_pct": 0.5,
+      "name": ""
+    },
+    {
+      "duration": 600,
+      "power_pct": 0.95,
+      "name": ""
+    },
+    {
+      "duration": 600,
+      "power_pct": 0.5,
+      "name": ""
+    }
+  ]
+}
