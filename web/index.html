@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FreeTrain</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<header class="app-header">
+  <div class="logo">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+    </svg>
+    FreeTrain
+  </div>
+
+  <nav class="tab-nav">
+    <button class="tab-btn active" data-tab="ride">Ride</button>
+    <button class="tab-btn"        data-tab="create">Create</button>
+    <button class="tab-btn"        data-tab="plan">Plan</button>
+    <button class="tab-btn"        data-tab="devices">Devices</button>
+    <button class="tab-btn"        data-tab="history">History</button>
+  </nav>
+
+  <div class="header-status" style="gap:10px">
+    <div class="status-pill" id="trainer-pill">
+      <span class="status-dot" id="trainer-dot"></span>
+      <span id="trainer-label">No Trainer</span>
+    </div>
+    <div id="header-user-info" style="display:none;align-items:center;gap:8px">
+      <span id="header-username" style="font-size:12px;color:var(--text-2);font-weight:500"></span>
+      <button class="btn btn-adj btn-sm" onclick="AuthManager.logout()">Sign Out</button>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <!-- ═══════════════════════════ RIDE TAB ═══════════════════════════ -->
+  <section id="tab-ride" class="tab-content active">
+
+    <div class="ride-toolbar">
+      <div class="select-wrap">
+        <select id="workout-select">
+          <option value="">— Select a workout —</option>
+        </select>
+      </div>
+
+      <label class="ftp-label">
+        FTP
+        <input id="ftp-input" type="number" value="250" min="50" max="700" step="5">
+        <span class="unit">W</span>
+      </label>
+
+      <label class="sim-toggle" title="Generate fake power data so you can test without a trainer">
+        <input type="checkbox" id="simulate-chk">
+        Simulate power
+      </label>
+
+      <button id="start-btn" class="btn btn-start" disabled>Start Workout</button>
+    </div>
+
+    <!-- Today's plan banner -->
+    <div class="today-plan" id="today-plan" style="display:none">
+      <span class="today-plan-label">Today's Plan</span>
+      <span class="today-plan-name" id="today-plan-name"></span>
+      <button class="btn btn-adj btn-sm" id="today-plan-load">Load Workout</button>
+    </div>
+
+    <!-- Main power chart -->
+    <div class="chart-wrap">
+      <canvas id="workout-canvas"></canvas>
+      <div class="chart-placeholder" id="chart-placeholder">
+        <p>Select a workout above to preview</p>
+      </div>
+    </div>
+
+    <!-- Live metrics row -->
+    <div class="metrics-row">
+      <div class="metric power-metric">
+        <div class="metric-value" id="m-power">—</div>
+        <div class="metric-label">Watts</div>
+      </div>
+      <div class="metric-divider"></div>
+      <div class="metric target-metric">
+        <div class="metric-value" id="m-target">—</div>
+        <div class="metric-label">Target</div>
+      </div>
+      <div class="metric-divider"></div>
+      <div class="metric">
+        <div class="metric-value" id="m-cadence">—</div>
+        <div class="metric-label">RPM</div>
+      </div>
+      <div class="metric-divider"></div>
+      <div class="metric">
+        <div class="metric-value" id="m-hr">—</div>
+        <div class="metric-label">BPM</div>
+      </div>
+      <div class="metric-divider"></div>
+      <div class="metric">
+        <div class="metric-value" id="m-elapsed">0:00</div>
+        <div class="metric-label">Elapsed</div>
+      </div>
+      <div class="metric-divider"></div>
+      <div class="metric">
+        <div class="metric-value" id="m-remaining">—</div>
+        <div class="metric-label">Remaining</div>
+      </div>
+    </div>
+
+    <!-- Interval progress -->
+    <div class="interval-bar" id="interval-bar">
+      <div class="interval-info">
+        <span class="interval-badge" id="interval-badge">—</span>
+        <span class="interval-name" id="interval-name">Select a workout to begin</span>
+        <span class="interval-countdown" id="interval-countdown"></span>
+      </div>
+      <div class="interval-track">
+        <div class="interval-fill" id="interval-fill"></div>
+      </div>
+    </div>
+
+    <!-- Workout controls -->
+    <div class="controls-row" id="workout-controls" style="display:none">
+      <button class="btn btn-pause" id="pause-btn">⏸ Pause</button>
+      <button class="btn btn-stop"  id="stop-btn">⏹ Stop</button>
+      <button class="btn btn-skip"  id="skip-btn">⏭ Skip</button>
+      <div class="power-adj">
+        <button class="btn btn-adj" data-offset="-10">−10W</button>
+        <span class="adj-label" id="adj-label">±0W</span>
+        <button class="btn btn-adj" data-offset="10">+10W</button>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ════════════════════════════ PLAN TAB ════════════════════════════ -->
+  <section id="tab-plan" class="tab-content">
+
+    <div class="planner-header">
+      <button class="btn btn-adj" id="cal-prev">‹</button>
+      <h2 id="cal-month-label"></h2>
+      <button class="btn btn-adj" id="cal-next">›</button>
+      <button class="btn btn-adj" id="cal-today-btn">Today</button>
+      <button class="btn btn-start btn-sm" id="open-plan-generator" style="margin-left:auto"
+        onclick="document.getElementById('pg-overlay').style.display='flex';document.body.style.overflow='hidden'">+ Create Plan</button>
+    </div>
+
+    <div class="cal-weekday-row">
+      <div>Sun</div><div>Mon</div><div>Tue</div>
+      <div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+    </div>
+
+    <div class="calendar-grid" id="calendar-grid"></div>
+
+    <!-- Adaptive insights banner -->
+    <div class="pg-insights-banner" id="pg-insights-banner" style="display:none">
+      <span class="pg-insights-dot" id="insights-dot"></span>
+      <strong id="insights-status-label"></strong>
+      <span id="insights-message"></span>
+    </div>
+
+    <!-- Day planning modal -->
+    <div class="day-modal-overlay" id="day-modal" style="display:none">
+      <div class="day-modal-card">
+        <h3 id="day-modal-title"></h3>
+        <div class="form-group">
+          <label>Workout</label>
+          <select id="day-workout-select">
+            <option value="">— Rest Day —</option>
+          </select>
+        </div>
+        <div class="day-modal-actions">
+          <button class="btn btn-start" id="day-ride-btn" style="display:none">▶ Ride Now</button>
+          <button class="btn btn-start" id="day-save-btn">Save</button>
+          <button class="btn btn-adj"   id="day-cancel-btn">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ══════════════════════════ CREATE TAB ══════════════════════════ -->
+  <section id="tab-create" class="tab-content">
+    <div class="create-layout">
+
+      <aside class="create-panel">
+        <h2>New Workout</h2>
+
+        <div class="form-group">
+          <label>Name</label>
+          <input type="text" id="c-name" placeholder="My Workout">
+        </div>
+        <div class="form-group">
+          <label>Description</label>
+          <input type="text" id="c-desc" placeholder="Optional notes">
+        </div>
+        <div class="form-group row">
+          <label>Preview FTP</label>
+          <input type="number" id="c-ftp" value="250" min="50" max="700" step="5">
+          <span class="unit">W</span>
+        </div>
+
+        <div class="intervals-header">
+          <span>Intervals</span>
+          <span id="c-total-time" class="total-time">0:00</span>
+        </div>
+        <div class="intervals-list" id="c-intervals"></div>
+
+        <div class="add-block">
+          <h3>Add Interval</h3>
+          <div class="form-group row">
+            <label>Duration</label>
+            <input type="text" id="c-dur" placeholder="5:00">
+            <span class="hint">mm:ss</span>
+          </div>
+          <div class="form-group row">
+            <label>Power</label>
+            <input type="number" id="c-pwr" placeholder="85" min="1" max="300">
+            <span class="unit">% FTP</span>
+          </div>
+          <div class="form-group">
+            <label>Label <span class="hint">(optional)</span></label>
+            <input type="text" id="c-lbl" placeholder="e.g. Threshold">
+          </div>
+          <button class="btn btn-add" id="c-add-btn">+ Add Interval</button>
+        </div>
+
+        <div class="create-actions">
+          <button class="btn btn-start" id="c-save-btn">Save Workout</button>
+          <button class="btn btn-adj"   id="c-clear-btn">Clear All</button>
+        </div>
+      </aside>
+
+      <div class="create-preview">
+        <canvas id="create-canvas"></canvas>
+        <div class="create-placeholder" id="create-placeholder">
+          <p>Add intervals to preview the workout</p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ══════════════════════════ DEVICES TAB ══════════════════════════ -->
+  <section id="tab-devices" class="tab-content">
+    <div class="devices-layout">
+
+      <!-- Connected -->
+      <div class="devices-panel">
+        <h2>Connected</h2>
+
+        <div class="device-card" id="dc-trainer">
+          <div class="device-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-3)"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></svg>
+          </div>
+          <div class="device-info">
+            <div class="device-name" id="dc-trainer-name">No Trainer</div>
+            <div class="device-type">Smart Trainer · FTMS / ERG</div>
+          </div>
+          <div class="device-badge disconnected" id="dc-trainer-badge">—</div>
+        </div>
+
+        <button class="btn btn-stop" id="disconnect-btn" style="display:none">
+          Disconnect Trainer
+        </button>
+      </div>
+
+      <!-- Web Bluetooth connect panel -->
+      <div class="scan-panel">
+        <div class="scan-header">
+          <h2>Connect Trainer</h2>
+          <button class="btn btn-start" id="ble-connect-btn">Connect via Bluetooth</button>
+        </div>
+
+        <!-- Shown when Web Bluetooth is not available -->
+        <div id="ble-unsupported-banner" class="scan-hint"
+             style="display:none;border-left:3px solid var(--orange, #f59e0b);padding-left:12px">
+          Web Bluetooth is only supported in Chrome and Edge on desktop.
+          Safari, Firefox, and mobile browsers are not supported.
+          For full compatibility, use the
+          <a href="https://github.com" style="color:var(--blue)">desktop app</a> instead.
+        </div>
+
+        <div class="scan-hint" id="ble-hint">
+          Click <strong>Connect via Bluetooth</strong> and select your trainer from the browser
+          device picker. Make sure the trainer is powered on and not connected to Zwift or
+          another app.
+        </div>
+
+        <div class="scan-status" id="scan-status"></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ════════════════════════════ HISTORY TAB ═════════════════════════ -->
+  <section id="tab-history" class="tab-content">
+
+    <div class="history-header">
+      <h2>Ride History</h2>
+      <span class="history-count" id="history-count"></span>
+    </div>
+
+    <div class="history-empty" id="history-empty" style="display:none">
+      <p>No rides yet. Complete a workout and it will appear here.</p>
+    </div>
+
+    <div class="history-list" id="history-list"></div>
+
+  </section>
+
+</main>
+
+<div class="toast" id="toast"></div>
+
+<!-- ══════════════════════ PLAN GENERATOR MODAL ═══════════════════ -->
+<div class="pg-overlay" id="pg-overlay" style="display:none"
+  onclick="if(event.target===this){this.style.display='none';document.body.style.overflow='';}">
+  <div class="pg-card">
+
+    <div class="pg-card-header">
+      <span class="pg-card-title">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--blue)"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        Create Training Plan
+      </span>
+      <button class="pg-close" id="pg-close" aria-label="Close"
+        onclick="document.getElementById('pg-overlay').style.display='none';document.body.style.overflow=''">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+
+    <div class="pg-card-body">
+
+      <div class="form-group">
+        <label>Training Goal</label>
+        <select id="pg-goal">
+          <option value="base_fitness">Base Fitness – Build your aerobic foundation</option>
+          <option value="build_fitness">Build Fitness – Raise FTP with structured intensity</option>
+          <option value="century">Century / Gran Fondo – Volume and endurance prep</option>
+          <option value="race_prep">Race Prep – Full periodisation with VO2 work</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Experience Level</label>
+        <div class="pg-pills" id="pg-level">
+          <button class="pg-pill" data-val="beginner">Beginner</button>
+          <button class="pg-pill active" data-val="intermediate">Intermediate</button>
+          <button class="pg-pill" data-val="advanced">Advanced</button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Days per Week</label>
+        <div class="pg-pills" id="pg-days">
+          <button class="pg-pill" data-val="3">3</button>
+          <button class="pg-pill active" data-val="4">4</button>
+          <button class="pg-pill" data-val="5">5</button>
+          <button class="pg-pill" data-val="6">6</button>
+          <button class="pg-pill" data-val="7">7</button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Weekly Training Time</label>
+        <div class="pg-pills" id="pg-hours">
+          <button class="pg-pill" data-val="3">3 hrs</button>
+          <button class="pg-pill active" data-val="5">5 hrs</button>
+          <button class="pg-pill" data-val="7">7 hrs</button>
+          <button class="pg-pill" data-val="10">10 hrs</button>
+        </div>
+        <p class="pg-sub-hint" id="pg-session-hint">≈ 75 min per session</p>
+      </div>
+
+      <div class="form-group">
+        <label>Training Background <span class="hint">(optional)</span></label>
+        <textarea id="pg-notes" rows="2" placeholder="e.g. Returning after a break. 100-mile sportive in August. Currently at ~6 hrs/week."></textarea>
+      </div>
+
+    </div>
+
+    <div class="pg-card-footer">
+      <button class="btn btn-start" id="pg-generate-btn">Generate 6-Week Plan</button>
+      <button class="btn btn-adj"   id="pg-cancel-btn"
+        onclick="document.getElementById('pg-overlay').style.display='none';document.body.style.overflow=''">Cancel</button>
+      <button class="btn btn-adj pg-clear-btn" id="pg-clear-btn" style="margin-left:auto">Clear Plan</button>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════════════ AUTH OVERLAY ══════════════════════════ -->
+<div id="auth-overlay" class="auth-overlay" style="display:none">
+  <div class="auth-card">
+
+    <div class="auth-logo">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+           style="color:var(--blue)">
+        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+      </svg>
+      FreeTrain
+    </div>
+
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="auth-login-tab">Sign In</button>
+      <button class="auth-tab"        id="auth-register-tab">Create Account</button>
+    </div>
+
+    <form id="auth-login-form" class="auth-form">
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="auth-login-email" autocomplete="email" required>
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="auth-login-password" autocomplete="current-password" required>
+      </div>
+      <p id="auth-login-error" class="auth-error"></p>
+      <button type="submit" class="btn btn-start" style="width:100%">Sign In</button>
+    </form>
+
+    <form id="auth-register-form" class="auth-form" style="display:none">
+      <div class="form-group">
+        <label>Username</label>
+        <input type="text" id="auth-reg-username" autocomplete="username" required>
+      </div>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="auth-reg-email" autocomplete="email" required>
+      </div>
+      <div class="form-group">
+        <label>Password <span class="hint">(8+ characters)</span></label>
+        <input type="password" id="auth-reg-password" autocomplete="new-password" required>
+      </div>
+      <p id="auth-reg-error" class="auth-error"></p>
+      <button type="submit" class="btn btn-start" style="width:100%">Create Account</button>
+    </form>
+
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/config.js"></script>
+<script src="/js/chart.js"></script>
+<script src="/js/creator.js"></script>
+<script src="/js/planner.js"></script>
+<script src="/js/ble-web.js"></script>
+<script src="/js/engine-web.js"></script>
+<script src="/js/plan-web.js"></script>
+<script src="/js/app-web.js"></script>
+<script src="/js/auth.js"></script>
+</body>
+</html>
