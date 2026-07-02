@@ -261,6 +261,7 @@ async def _handle(user_id: str, msg: dict):
             "sessions_created": n,
             "weeks":            6,
             "goal":             profile.get("goal", "base_fitness"),
+            "ftp":              int(profile.get("ftp", 0)) or None,
             "message":          f"Your 6-week plan is ready — {n} sessions scheduled.",
         })
         await _broadcast(user_id, {"type": "workouts_updated", "workouts": workouts})

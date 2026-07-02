@@ -235,7 +235,13 @@ class PlanGenerator {
   }
 
   // ── Open / close (delegates to globals wired in app.js) ──────────
-  _open()  { if (window._pgOpen)  window._pgOpen(); }
+  _open() {
+    // Pre-fill FTP from whatever is on the ride tab
+    const rideTabFtp = document.getElementById('ftp-input')?.value;
+    const pgFtp      = document.getElementById('pg-ftp');
+    if (pgFtp && rideTabFtp) pgFtp.value = rideTabFtp;
+    if (window._pgOpen) window._pgOpen();
+  }
   _close() { if (window._pgClose) window._pgClose(); }
 
   _bindCloseButtons() {
@@ -275,12 +281,14 @@ class PlanGenerator {
       ?.addEventListener('click', () => {
         const days = parseInt(this._getVal('pg-days') ?? '4', 10);
         const hrs  = parseInt(this._getVal('pg-hours') ?? '5', 10);
+        const ftp  = parseInt(document.getElementById('pg-ftp')?.value || '250', 10);
 
         const profile = {
           goal:          document.getElementById('pg-goal')?.value ?? 'base_fitness',
           level:         this._getVal('pg-level') ?? 'intermediate',
           days_per_week: days,
           session_mins:  Math.round((hrs * 60) / days),
+          ftp,
           notes:         document.getElementById('pg-notes')?.value ?? '',
         };
 
@@ -289,6 +297,10 @@ class PlanGenerator {
         btn.textContent = 'Generating…';
 
         window.sendWS({ action: 'generate_plan', profile });
+
+        // Update ride tab FTP to match plan FTP
+        const ftpInput = document.getElementById('ftp-input');
+        if (ftpInput) ftpInput.value = ftp;
 
         setTimeout(() => {
           btn.disabled    = false;

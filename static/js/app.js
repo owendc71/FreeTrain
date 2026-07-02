@@ -125,6 +125,11 @@ function handleMessage(msg) {
 
     case 'plan_generated':
       toast(msg.message || 'Training plan created!');
+      if (msg.ftp) {
+        state.ftp = msg.ftp;
+        const ftpInput = document.getElementById('ftp-input');
+        if (ftpInput) ftpInput.value = msg.ftp;
+      }
       break;
 
     case 'plan_cleared':

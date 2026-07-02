@@ -3,6 +3,6 @@
 // The anon key is safe to include here (it's public).
 // Do NOT put your service_role key here.
 window.APP_CONFIG = {
-  supabaseUrl:     'YOUR_SUPABASE_URL',
-  supabaseAnonKey: 'YOUR_SUPABASE_ANON_KEY',
+  supabaseUrl:     'https://rnpzbqwxhfkkjszpnsvv.supabase.co',
+  supabaseAnonKey: 'sb_publishable_1qSZtLeR0omVTyIIb6YDHQ_PQwL78pn',
 };

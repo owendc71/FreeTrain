@@ -97,10 +97,10 @@ async function _fetchRides() {
 
 async function _fetchPlan() {
   const { data } = await _sb.from('plans')
-    .select('scheduled_date, workout_id')
+    .select('date, workout_id')
     .eq('user_id', _userId);
   const out = {};
-  (data || []).forEach(p => { out[p.scheduled_date] = p.workout_id; });
+  (data || []).forEach(p => { if (p.workout_id) out[p.date] = p.workout_id; });
   return out;
 }
 
@@ -168,21 +168,18 @@ async function _handleAction(msg) {
       break;
     }
 
-    // ── Plan entries ───────────────────────────────────────────────
-    case 'save_plan_entry': {
-      await _sb.from('plans').upsert({
-        user_id:        _userId,
-        scheduled_date: msg.date,
-        workout_id:     msg.workout_id,
-      }, { onConflict: 'user_id,scheduled_date' });
-      _plan = await _fetchPlan();
-      if (window._planner) window._planner.update({ plan: _plan });
-      break;
-    }
-
-    case 'delete_plan_entry': {
-      await _sb.from('plans').delete()
-        .eq('user_id', _userId).eq('scheduled_date', msg.date);
+    // ── Calendar plan entry (workout_id null = rest day / clear) ──
+    case 'plan_day': {
+      if (msg.workout_id) {
+        await _sb.from('plans').upsert({
+          user_id:    _userId,
+          date:       msg.date,
+          workout_id: msg.workout_id,
+        }, { onConflict: 'user_id,date' });
+      } else {
+        await _sb.from('plans').delete()
+          .eq('user_id', _userId).eq('date', msg.date);
+      }
       _plan = await _fetchPlan();
       if (window._planner) window._planner.update({ plan: _plan });
       break;
@@ -191,6 +188,11 @@ async function _handleAction(msg) {
     // ── Generated plan ─────────────────────────────────────────────
     case 'generate_plan':
       await _generatePlan(msg.profile);
+      if (msg.profile.ftp) {
+        state.ftp = msg.profile.ftp;
+        const ftpInput = document.getElementById('ftp-input');
+        if (ftpInput) ftpInput.value = msg.profile.ftp;
+      }
       break;
 
     case 'clear_plan':
@@ -343,10 +345,10 @@ async function _generatePlan(profile) {
     if (!w) continue;
 
     await _sb.from('plans').upsert({
-      user_id:        _userId,
-      scheduled_date: date,
-      workout_id:     w.id,
-    }, { onConflict: 'user_id,scheduled_date' });
+      user_id:    _userId,
+      date:       date,
+      workout_id: w.id,
+    }, { onConflict: 'user_id,date' });
     count++;
   }
 
