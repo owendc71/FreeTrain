@@ -44,7 +44,7 @@
   --shadow:  0 1px 3px rgba(0,0,0,.07), 0 4px 16px rgba(0,0,0,.04);
   --shadow2: 0 8px 30px rgba(0,0,0,.12), 0 2px 8px rgba(0,0,0,.06);
 
-  --font: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  --font: "Inter", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
   --mono: "SF Mono", ui-monospace, "Fira Code", monospace;
 }
 
@@ -81,16 +81,30 @@ html, body {
 .logo {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 14px;
+  gap: 9px;
+  font-size: 15px;
   font-weight: 800;
   letter-spacing: -0.03em;
   color: var(--text);
   white-space: nowrap;
   margin-right: 28px;
   flex-shrink: 0;
+  text-decoration: none;
 }
 .logo svg { color: var(--blue); }
+.logo-mark {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: linear-gradient(135deg, #0d2416, #14361f);
+  border: 1px solid rgba(22,163,74,0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 1px 4px rgba(0,0,0,.12);
+}
+.logo-mark svg { color: #22c55e; }
 
 /* Tab nav */
 .tab-nav {
@@ -479,6 +493,13 @@ input::placeholder { color: var(--text-3); }
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  background: var(--glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--gb);
+  border-radius: var(--r);
+  padding: 10px 12px;
+  box-shadow: var(--shadow);
 }
 .power-adj { display: flex; align-items: center; gap: 5px; margin-left: auto; }
 .adj-label {
@@ -735,6 +756,44 @@ input::placeholder { color: var(--text-3); }
 .history-header h2 { font-size: 16px; font-weight: 700; }
 .history-count     { font-size: 12px; color: var(--text-3); }
 
+/* Career totals bar */
+.history-summary {
+  display: flex;
+  align-items: center;
+  background: var(--glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--gb);
+  border-radius: var(--r);
+  padding: 18px 8px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow);
+}
+.hs-stat {
+  flex: 1;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-right: 1px solid var(--gb);
+}
+.hs-stat:last-child { border-right: none; }
+.hs-value {
+  font-family: var(--mono);
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: var(--text);
+  line-height: 1;
+}
+.hs-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .10em;
+  color: var(--text-3);
+  font-weight: 600;
+}
+
 .history-empty {
   text-align: center;
   padding: 60px 20px;
@@ -957,15 +1016,30 @@ input::placeholder { color: var(--text-3); }
   box-shadow: var(--shadow2);
 }
 
+.auth-brand { display: flex; flex-direction: column; gap: 6px; }
 .auth-logo {
   display: flex;
   align-items: center;
   gap: 9px;
-  font-size: 18px;
+  font-size: 19px;
   font-weight: 800;
   letter-spacing: -0.04em;
   color: var(--text);
 }
+.auth-tagline {
+  font-size: 13px;
+  color: var(--text-2);
+  font-weight: 500;
+}
+.auth-back {
+  font-size: 12.5px;
+  color: var(--text-3);
+  text-decoration: none;
+  text-align: center;
+  margin-top: -6px;
+  transition: color .15s;
+}
+.auth-back:hover { color: var(--text-2); }
 
 .auth-tabs {
   display: flex;

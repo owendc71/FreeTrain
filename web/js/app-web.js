@@ -252,8 +252,8 @@ function _startWorkout(workout, ftp, simulate) {
     },
   });
 
-  document.getElementById('workout-controls').style.display = 'flex';
-  document.getElementById('interval-fill').style.width      = '0%';
+  setControlsEnabled(true);
+  document.getElementById('interval-fill').style.width = '0%';
   _engine.start();
 }
 
@@ -408,7 +408,7 @@ function previewWorkout(id) {
   window._rideChart.setIntervals(w.intervals);
   canvas.style.display = 'block';
   ph.style.display     = 'none';
-  document.getElementById('start-btn').disabled = false;
+  document.getElementById('start-btn').disabled = state.running;
   document.getElementById('interval-name').textContent =
     `${w.intervals.length} intervals  ·  ${fmtTime(w.total_duration)}`;
 }
@@ -450,12 +450,32 @@ function updateLiveData(msg) {
 }
 
 // ── History ───────────────────────────────────────────────────────
+function renderHistorySummary(rides) {
+  const el = document.getElementById('history-summary');
+  if (!el) return;
+  if (!rides.length) { el.style.display = 'none'; return; }
+
+  const totalSec  = rides.reduce((s, r) => s + (r.elapsed || 0), 0);
+  const totalTss  = rides.reduce((s, r) => s + (r.tss || 0), 0);
+  const completed = rides.filter(r => r.completed).length;
+  const hrs       = Math.floor(totalSec / 3600);
+  const mins      = Math.round((totalSec % 3600) / 60);
+
+  document.getElementById('hs-rides').textContent      = rides.length;
+  document.getElementById('hs-time').textContent       = hrs ? `${hrs}h ${mins}m` : `${mins}m`;
+  document.getElementById('hs-tss').textContent        = Math.round(totalTss);
+  document.getElementById('hs-completion').textContent =
+    Math.round((completed / rides.length) * 100) + '%';
+  el.style.display = 'flex';
+}
+
 function renderHistory(rides) {
   const list  = document.getElementById('history-list');
   const empty = document.getElementById('history-empty');
   const count = document.getElementById('history-count');
   list.innerHTML = '';
   count.textContent = rides.length ? `${rides.length} ride${rides.length === 1 ? '' : 's'}` : '';
+  renderHistorySummary(rides);
   if (!rides.length) { empty.style.display = 'block'; return; }
   empty.style.display = 'none';
 
@@ -536,10 +556,20 @@ function setMetric(id, val) {
   if (el) el.textContent = val != null ? val : '—';
 }
 
+function setControlsEnabled(on) {
+  ['pause-btn', 'stop-btn', 'skip-btn'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = !on;
+  });
+  document.querySelectorAll('[data-offset]').forEach(b => { b.disabled = !on; });
+  const startBtn = document.getElementById('start-btn');
+  if (startBtn) startBtn.disabled = on || !state.selected;
+}
+
 function resetRideUI() {
   state.running = false;
   state.paused  = false;
-  document.getElementById('workout-controls').style.display = 'none';
+  setControlsEnabled(false);
   document.getElementById('pause-btn').textContent = '⏸ Pause';
   document.getElementById('interval-fill').style.width = '0%';
   document.getElementById('adj-label').textContent = '±0W';
@@ -588,7 +618,6 @@ document.addEventListener('DOMContentLoaded', () => {
       toast('No trainer connected – workout will run without ERG');
     }
     window.sendWS({ action: 'start_workout', workout_id: state.selected.id, ftp, simulate });
-    document.getElementById('workout-controls').style.display = 'flex';
     document.getElementById('interval-fill').style.width = '0%';
   });
 

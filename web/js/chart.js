@@ -143,7 +143,7 @@ class WorkoutChart {
     ctx.beginPath(); ctx.moveTo(P.left, ftpY); ctx.lineTo(P.left + cW, ftpY); ctx.stroke();
     ctx.setLineDash([]);
     ctx.fillStyle = 'rgba(21,128,61,0.55)';
-    ctx.font      = '10px -apple-system, sans-serif';
+    ctx.font      = '10px Inter, -apple-system, sans-serif';
     ctx.fillText('FTP', P.left + 4, ftpY - 4);
     ctx.restore();
 
@@ -242,7 +242,7 @@ class WorkoutChart {
     // ── Y-axis labels ──
     ctx.save();
     ctx.fillStyle = '#8faa8f';
-    ctx.font      = '11px -apple-system, "SF Mono", monospace';
+    ctx.font      = '11px Inter, -apple-system, sans-serif';
     ctx.textAlign = 'right';
     const yStep = cH < 180 ? 0.50 : 0.25;
     for (let pct = 0; pct <= this._maxPct + 0.01; pct += yStep) {
@@ -262,7 +262,7 @@ class WorkoutChart {
     // ── X-axis labels ──
     ctx.save();
     ctx.fillStyle = '#8faa8f';
-    ctx.font      = '11px -apple-system, "SF Mono", monospace';
+    ctx.font      = '11px Inter, -apple-system, sans-serif';
     ctx.textAlign = 'center';
     const nLabels  = Math.min(10, Math.floor(cW / 70));
     const stepSec  = total / nLabels;

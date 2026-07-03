@@ -13,14 +13,14 @@
 <body>
 
 <header class="app-header">
-  <div class="logo">
+  <a class="logo" href="/">
     <span class="logo-mark">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
         <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
       </svg>
     </span>
     FreeTrain
-  </div>
+  </a>
 
   <nav class="tab-nav">
     <button class="tab-btn active" data-tab="ride">Ride</button>
@@ -161,7 +161,7 @@
 
     <div class="calendar-grid" id="calendar-grid"></div>
 
-    <!-- Adaptive insights banner (appears after ride saves) -->
+    <!-- Adaptive insights banner -->
     <div class="pg-insights-banner" id="pg-insights-banner" style="display:none">
       <span class="pg-insights-dot" id="insights-dot"></span>
       <strong id="insights-status-label"></strong>
@@ -192,7 +192,6 @@
   <section id="tab-create" class="tab-content">
     <div class="create-layout">
 
-      <!-- Left: form -->
       <aside class="create-panel">
         <h2>New Workout</h2>
 
@@ -241,7 +240,6 @@
         </div>
       </aside>
 
-      <!-- Right: preview -->
       <div class="create-preview">
         <canvas id="create-canvas"></canvas>
         <div class="create-placeholder" id="create-placeholder">
@@ -271,36 +269,33 @@
           <div class="device-badge disconnected" id="dc-trainer-badge">—</div>
         </div>
 
-        <div class="device-card" id="dc-pm">
-          <div class="device-icon">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-3)"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-          </div>
-          <div class="device-info">
-            <div class="device-name" id="dc-pm-name">No Power Meter</div>
-            <div class="device-type">Power Meter (optional)</div>
-          </div>
-          <div class="device-badge disconnected" id="dc-pm-badge">—</div>
-        </div>
-
         <button class="btn btn-stop" id="disconnect-btn" style="display:none">
-          Disconnect All
+          Disconnect Trainer
         </button>
       </div>
 
-      <!-- Scan -->
+      <!-- Web Bluetooth connect panel -->
       <div class="scan-panel">
         <div class="scan-header">
-          <h2>Available Devices</h2>
-          <button class="btn btn-start" id="scan-btn">Scan (10s)</button>
+          <h2>Connect Trainer</h2>
+          <button class="btn btn-start" id="ble-connect-btn">Connect via Bluetooth</button>
         </div>
 
-        <div class="scan-hint" id="scan-hint">
-          Make sure your trainer is powered on and not connected to another app (Zwift, Wahoo Fitness, etc.).
-          macOS will ask for Bluetooth permission on first use.
+        <!-- Shown when Web Bluetooth is not available -->
+        <div id="ble-unsupported-banner" class="scan-hint"
+             style="display:none;border-left:3px solid var(--amber);padding-left:12px">
+          Web Bluetooth is only supported in Chrome and Edge on desktop.
+          Safari, Firefox, and mobile browsers are not supported.
+          The desktop app (coming soon) will work everywhere.
+        </div>
+
+        <div class="scan-hint" id="ble-hint">
+          Click <strong>Connect via Bluetooth</strong> and select your trainer from the browser
+          device picker. Make sure the trainer is powered on and not connected to Zwift or
+          another app.
         </div>
 
         <div class="scan-status" id="scan-status"></div>
-        <div class="device-list" id="device-list"></div>
       </div>
 
     </div>
@@ -450,7 +445,6 @@
       <button class="auth-tab"        id="auth-register-tab">Create Account</button>
     </div>
 
-    <!-- Login -->
     <form id="auth-login-form" class="auth-form">
       <div class="form-group">
         <label>Email</label>
@@ -464,7 +458,6 @@
       <button type="submit" class="btn btn-start" style="width:100%">Sign In</button>
     </form>
 
-    <!-- Register -->
     <form id="auth-register-form" class="auth-form" style="display:none">
       <div class="form-group">
         <label>Username</label>
@@ -482,6 +475,8 @@
       <button type="submit" class="btn btn-start" style="width:100%">Create Account</button>
     </form>
 
+    <a class="auth-back" href="/">← Back to freetrain.app</a>
+
   </div>
 </div>
 
@@ -490,7 +485,10 @@
 <script src="/js/chart.js"></script>
 <script src="/js/creator.js"></script>
 <script src="/js/planner.js"></script>
-<script src="/js/app.js"></script>
+<script src="/js/ble-web.js"></script>
+<script src="/js/engine-web.js"></script>
+<script src="/js/plan-web.js"></script>
+<script src="/js/app-web.js"></script>
 <script src="/js/auth.js"></script>
 </body>
 </html>
