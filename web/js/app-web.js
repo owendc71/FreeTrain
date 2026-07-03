@@ -54,13 +54,14 @@ window.startApp = async function(token) {
   // Strava: restore connection, then handle an OAuth redirect if present
   _strava = new StravaManager(_sb, _userId);
   await _strava.init();
-  if (new URLSearchParams(location.search).has('code')) {
+  const spq = new URLSearchParams(location.search);
+  if (spq.has('code') || spq.has('error')) {
     const ok = await _strava.handleCallback();
     if (ok) {
       toast('Strava connected! Completed rides will sync automatically.');
       document.querySelector('[data-tab="devices"]')?.click();
     } else {
-      toast('Strava connection failed — try again.');
+      toast(`Strava connection failed: ${_strava.lastError || 'unknown error'}`, 6000);
     }
   }
   updateStravaUI();

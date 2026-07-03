@@ -65,6 +65,13 @@ class WorkoutChart {
   }
 
   tick(elapsedSec, powerWatts) {
+    // If time jumped (interval skipped), restart the trace so we don't
+    // draw a connector line across the skipped region.
+    const last = this._powerBuf[this._powerBuf.length - 1];
+    if (last && Math.abs(elapsedSec - last.t) > 2) {
+      this._powerBuf = [];
+    }
+
     this._elapsed = elapsedSec;
     if (powerWatts != null) {
       this._powerBuf.push({ t: elapsedSec, w: powerWatts });
@@ -122,17 +129,6 @@ class WorkoutChart {
 
     const xOf  = t => P.left + (t / total) * cW;
     const yOf  = w => P.top  + cH - (w / maxP) * cH;
-
-    // ── zone guide lines ──
-    ctx.save();
-    ctx.strokeStyle = 'rgba(0,0,0,0.05)';
-    ctx.lineWidth   = 1;
-    for (const z of WorkoutChart.ZONES) {
-      if (z.max === Infinity) break;
-      const y = yOf(z.max * this.ftp);
-      ctx.beginPath(); ctx.moveTo(P.left, y); ctx.lineTo(P.left + cW, y); ctx.stroke();
-    }
-    ctx.restore();
 
     // ── FTP reference line ──
     ctx.save();

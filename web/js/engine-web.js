@@ -47,7 +47,13 @@ class WebWorkoutEngine {
     if (this._ivIdx < this._intervals.length - 1) {
       this._ivIdx++;
       this._ivElapsed = 0;
+      // Jump the workout clock to the start of the next interval so the
+      // chart cursor and remaining time reflect the new position.
+      this._elapsed = this._intervals
+        .slice(0, this._ivIdx)
+        .reduce((s, iv) => s + iv.duration, 0);
       this._applyTarget();
+      this._broadcast();
     }
   }
 

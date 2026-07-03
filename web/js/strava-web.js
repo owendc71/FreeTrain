@@ -42,22 +42,42 @@ class StravaManager {
   }
 
   // Handles ?code=... after Strava redirects back. Returns true if connected.
+  // On failure, this.lastError holds a human-readable reason.
   async handleCallback() {
     const params = new URLSearchParams(location.search);
     const code   = params.get('code');
-    if (!code || !params.get('scope')) return false;
+    if (params.get('error')) {
+      history.replaceState({}, '', location.pathname);
+      this.lastError = 'authorization was cancelled';
+      return false;
+    }
+    if (!code) return false;
 
     // Clean the URL immediately so a reload doesn't reuse the code
     history.replaceState({}, '', location.pathname);
 
-    const r = await fetch('/api/strava-token', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ code }),
-    });
-    if (!r.ok) return false;
-    const tokens = await r.json();
-    await this._saveTokens(tokens);
+    let r;
+    try {
+      r = await fetch('/api/strava-token', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ code }),
+      });
+    } catch (e) {
+      this.lastError = 'could not reach /api/strava-token — are you running the deployed site?';
+      return false;
+    }
+
+    const body = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      this.lastError = body.error === 'strava_not_configured'
+        ? 'STRAVA_CLIENT_ID / STRAVA_CLIENT_SECRET are not set in Vercel'
+        : (body.error || `token exchange failed (HTTP ${r.status})`);
+      console.error('Strava token exchange failed:', r.status, body);
+      return false;
+    }
+
+    await this._saveTokens(body);
     return true;
   }
 

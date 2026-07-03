@@ -174,6 +174,11 @@ class WorkoutEngine:
     async def skip_interval(self):
         self.interval_idx    += 1
         self.interval_elapsed = 0
+        # Jump the workout clock to the start of the next interval so the
+        # chart cursor and remaining time reflect the new position.
+        self.total_elapsed = sum(
+            iv.duration for iv in self.intervals[: self.interval_idx]
+        )
         if self.interval_idx >= len(self.intervals):
             await self._finish()
             return
