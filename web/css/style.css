@@ -92,19 +92,14 @@ html, body {
   text-decoration: none;
 }
 .logo svg { color: var(--blue); }
-.logo-mark {
-  width: 26px;
-  height: 26px;
-  border-radius: 7px;
-  background: linear-gradient(135deg, #0d2416, #14361f);
-  border: 1px solid rgba(22,163,74,0.4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  box-shadow: 0 1px 4px rgba(0,0,0,.12);
+.logo .accent-word,
+.auth-logo .accent-word {
+  background: linear-gradient(100deg, #16a34a 20%, #4ade80 85%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
 }
-.logo-mark svg { color: #22c55e; }
 
 /* Tab nav */
 .tab-nav {
@@ -683,6 +678,39 @@ input::placeholder { color: var(--text-3); }
 }
 .device-badge.connected    { background: var(--green-bg); color: var(--blue-dim); border-color: rgba(22,163,74,.28); }
 .device-badge.disconnected { background: rgba(0,0,0,.04); color: var(--text-3);   border-color: var(--gb); }
+
+/* Connected apps (Strava etc.) */
+.apps-panel { grid-column: 1 / -1; }
+.app-icon-strava {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  background: #fc4c02;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 1px 4px rgba(252,76,2,.3);
+}
+.btn-strava {
+  background: #fc4c02;
+  color: #fff;
+  font-weight: 700;
+  border-color: transparent;
+}
+.btn-strava:hover { background: #e34402; }
+.strava-view {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #fc4c02;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  margin-right: auto;
+  align-self: center;
+}
+.strava-view:hover { text-decoration: underline; }
 
 .scan-header { display: flex; align-items: center; justify-content: space-between; }
 .scan-hint {

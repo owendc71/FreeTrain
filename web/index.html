@@ -53,18 +53,15 @@
       height: 64px;
     }
     .brand {
-      display: flex; align-items: center; gap: 10px;
-      font-size: 17px; font-weight: 800; letter-spacing: -0.03em;
+      display: flex; align-items: center; gap: 8px;
+      font-size: 18px; font-weight: 800; letter-spacing: -0.035em;
       color: var(--text); text-decoration: none;
     }
-    .brand-mark {
-      width: 30px; height: 30px; border-radius: 8px;
-      background: linear-gradient(135deg, #14361f, #0d2416);
-      border: 1px solid rgba(34,197,94,0.35);
-      display: flex; align-items: center; justify-content: center;
-      box-shadow: 0 0 18px rgba(34,197,94,0.15);
+    .brand .accent-word {
+      background: linear-gradient(100deg, #22c55e 20%, #7ee2a3 80%);
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent; color: transparent;
     }
-    .brand-mark svg { color: var(--green); }
     .nav-links { display: flex; gap: 26px; margin-left: 12px; }
     .nav-links a {
       color: var(--text-2); text-decoration: none;
@@ -295,8 +292,7 @@
       display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
       font-size: 13px; color: var(--text-3);
     }
-    .footer-inner .brand { font-size: 14px; }
-    .footer-inner .brand-mark { width: 24px; height: 24px; border-radius: 6px; }
+    .footer-inner .brand { font-size: 15px; }
     .footer-right { margin-left: auto; display: flex; gap: 20px; }
     .footer-right a { color: var(--text-3); text-decoration: none; transition: color .15s; }
     .footer-right a:hover { color: var(--text-2); }
@@ -307,14 +303,7 @@
 <!-- ═══ Nav ═══ -->
 <nav class="nav">
   <div class="wrap nav-inner">
-    <a class="brand" href="/">
-      <span class="brand-mark">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-        </svg>
-      </span>
-      FreeTrain
-    </a>
+    <a class="brand" href="/"><span class="accent-word">Free</span>Train</a>
     <div class="nav-links">
       <a href="#features">Features</a>
       <a href="#get-started">Get Started</a>
@@ -436,8 +425,8 @@
         <div class="feature-icon">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>
         </div>
-        <h3>Synced Everywhere</h3>
-        <p>Your workouts, plans, and ride history live in your account — start a plan on your desktop and it's already there when you open the web app.</p>
+        <h3>Strava &amp; Sync</h3>
+        <p>Completed rides upload to Strava automatically with full power data, and your workouts, plans, and history follow your account everywhere.</p>
       </div>
     </div>
   </div>
@@ -505,14 +494,7 @@
 <!-- ═══ Footer ═══ -->
 <footer>
   <div class="wrap footer-inner">
-    <a class="brand" href="/">
-      <span class="brand-mark">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-        </svg>
-      </span>
-      FreeTrain
-    </a>
+    <a class="brand" href="/"><span class="accent-word">Free</span>Train</a>
     <span>© 2026 FreeTrain</span>
     <div class="footer-right">
       <a href="#features">Features</a>

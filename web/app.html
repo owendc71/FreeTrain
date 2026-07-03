@@ -13,14 +13,7 @@
 <body>
 
 <header class="app-header">
-  <a class="logo" href="/">
-    <span class="logo-mark">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-      </svg>
-    </span>
-    FreeTrain
-  </a>
+  <a class="logo" href="/"><span class="accent-word">Free</span>Train</a>
 
   <nav class="tab-nav">
     <button class="tab-btn active" data-tab="ride">Ride</button>
@@ -298,6 +291,28 @@
         <div class="scan-status" id="scan-status"></div>
       </div>
 
+      <!-- Connected apps -->
+      <div class="devices-panel apps-panel">
+        <h2>Connected Apps</h2>
+
+        <div class="device-card">
+          <div class="app-icon-strava">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="#fff"><path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169"/></svg>
+          </div>
+          <div class="device-info">
+            <div class="device-name">Strava</div>
+            <div class="device-type" id="strava-status-text">Not connected</div>
+          </div>
+          <button class="btn btn-strava" id="strava-connect-btn">Connect with Strava</button>
+          <button class="btn btn-adj" id="strava-disconnect-btn" style="display:none">Disconnect</button>
+        </div>
+
+        <p class="hint" style="line-height:1.6">
+          When connected, completed workouts upload to Strava automatically as indoor
+          rides with full power data.
+        </p>
+      </div>
+
     </div>
   </section>
 
@@ -429,14 +444,7 @@
   <div class="auth-card">
 
     <div class="auth-brand">
-      <div class="auth-logo">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
-             style="color:var(--blue)">
-          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-        </svg>
-        FreeTrain
-      </div>
+      <div class="auth-logo"><span class="accent-word">Free</span>Train</div>
       <p class="auth-tagline">Structured indoor training. Free, forever.</p>
     </div>
 
@@ -488,6 +496,7 @@
 <script src="/js/ble-web.js"></script>
 <script src="/js/engine-web.js"></script>
 <script src="/js/plan-web.js"></script>
+<script src="/js/strava-web.js"></script>
 <script src="/js/app-web.js"></script>
 <script src="/js/auth.js"></script>
 </body>

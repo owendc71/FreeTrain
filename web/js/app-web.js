@@ -26,6 +26,7 @@ let _sb     = null;
 let _userId = null;
 let _ble    = null;
 let _engine = null;
+let _strava = null;
 let _rides  = [];
 let _plan   = {};
 
@@ -49,6 +50,20 @@ window.startApp = async function(token) {
     const hint = document.getElementById('ble-hint');
     if (hint) hint.style.display = 'none';
   }
+
+  // Strava: restore connection, then handle an OAuth redirect if present
+  _strava = new StravaManager(_sb, _userId);
+  await _strava.init();
+  if (new URLSearchParams(location.search).has('code')) {
+    const ok = await _strava.handleCallback();
+    if (ok) {
+      toast('Strava connected! Completed rides will sync automatically.');
+      document.querySelector('[data-tab="devices"]')?.click();
+    } else {
+      toast('Strava connection failed — try again.');
+    }
+  }
+  updateStravaUI();
 
   await _loadInitialData();
 };
@@ -319,6 +334,30 @@ async function _onSaveRide(ride) {
   }
 
   if (window._planner) window._planner.update({ rides: _rides });
+
+  // Strava auto-upload (background — doesn't block the UI)
+  if (data && _strava && _strava.isConnected()) {
+    _stravaUpload(data.id, ride);
+  }
+}
+
+async function _stravaUpload(rideId, ride) {
+  toast('Uploading to Strava…');
+  try {
+    const activityId = await _strava.uploadRide(ride);
+    if (!activityId) {
+      toast('Strava upload failed — the ride is still saved in FreeTrain.');
+      return;
+    }
+    await _sb.from('rides').update({ strava_id: activityId }).eq('id', rideId);
+    const r = _rides.find(x => x.id === rideId);
+    if (r) r.strava_id = activityId;
+    renderHistory(_rides);
+    toast('Ride uploaded to Strava');
+  } catch (e) {
+    console.error('Strava upload:', e);
+    toast('Strava upload failed — the ride is still saved in FreeTrain.');
+  }
 }
 
 // ── Plan generation ───────────────────────────────────────────────
@@ -506,6 +545,7 @@ function renderHistory(rides) {
         <div class="ride-stat"><span class="ride-stat-value">${tss}</span><span class="ride-stat-label">TSS</span></div>
       </div>
       <div class="ride-card-actions">
+        ${ride.strava_id ? `<a class="strava-view" href="https://www.strava.com/activities/${ride.strava_id}" target="_blank" rel="noopener">View on Strava ↗</a>` : ''}
         <button class="btn btn-stop" data-delete="${ride.id}" style="font-size:12px;padding:5px 12px">Delete</button>
       </div>
     `;
@@ -515,6 +555,33 @@ function renderHistory(rides) {
     });
     list.appendChild(card);
   });
+}
+
+// ── Strava UI ─────────────────────────────────────────────────────
+function updateStravaUI() {
+  const status  = document.getElementById('strava-status-text');
+  const connect = document.getElementById('strava-connect-btn');
+  const disc    = document.getElementById('strava-disconnect-btn');
+  if (!status) return;
+
+  if (!StravaManager.isConfigured()) {
+    status.textContent    = 'Not available on this deployment';
+    connect.style.display = 'none';
+    disc.style.display    = 'none';
+    return;
+  }
+  if (_strava && _strava.isConnected()) {
+    const name = _strava.athleteName();
+    status.textContent    = name
+      ? `Connected as ${name} — rides sync automatically`
+      : 'Connected — rides sync automatically';
+    connect.style.display = 'none';
+    disc.style.display    = 'inline-flex';
+  } else {
+    status.textContent    = 'Not connected';
+    connect.style.display = 'inline-flex';
+    disc.style.display    = 'none';
+  }
 }
 
 // ── Scan status helper ────────────────────────────────────────────
@@ -648,6 +715,19 @@ document.addEventListener('DOMContentLoaded', () => {
   if (bleConnBtn) bleConnBtn.addEventListener('click', () => window.sendWS({ action: 'ble_connect' }));
   const discBtn = document.getElementById('disconnect-btn');
   if (discBtn) discBtn.addEventListener('click', () => window.sendWS({ action: 'ble_disconnect' }));
+
+  // Strava connect / disconnect
+  document.getElementById('strava-connect-btn')?.addEventListener('click', () => {
+    if (!StravaManager.isConfigured()) { toast('Strava is not configured.'); return; }
+    _strava.connect();
+  });
+  document.getElementById('strava-disconnect-btn')?.addEventListener('click', async () => {
+    if (confirm('Disconnect Strava? New rides will no longer sync.')) {
+      await _strava.disconnect();
+      updateStravaUI();
+      toast('Strava disconnected.');
+    }
+  });
 
   // Init creator, planner, plan generator
   window._creator = new WorkoutCreator();

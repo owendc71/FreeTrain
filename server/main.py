@@ -3,19 +3,23 @@ import asyncio
 import logging
 import threading
 import webbrowser
+from datetime import datetime, timedelta, timezone
 
 import uvicorn
 from fastapi import FastAPI, Query, WebSocket, WebSocketDisconnect
-from fastapi.responses import Response
+from fastapi.responses import RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
+import strava
 from ble_manager import BLEManager
 from plan_engine import apply_adaptation, compute_adaptation, generate_plan
 from supabase_client import (
     SUPABASE_ANON_KEY, SUPABASE_URL,
-    clear_generated_plan, delete_ride, delete_workout,
-    get_plan, get_rides, get_upcoming_generated_workouts, get_workouts,
-    save_generated_plan, save_ride, save_workout, set_plan_day,
+    clear_generated_plan, delete_ride, delete_strava_connection,
+    delete_workout, get_plan, get_rides, get_strava_connection,
+    get_upcoming_generated_workouts, get_workouts,
+    save_generated_plan, save_ride, save_strava_connection, save_workout,
+    set_plan_day, set_ride_strava_id,
     update_workout_intervals, verify_token,
 )
 from workout_engine import WorkoutEngine
@@ -48,10 +52,91 @@ async def config_js():
     js = (
         f"window.APP_CONFIG = {{\n"
         f'  supabaseUrl: "{SUPABASE_URL}",\n'
-        f'  supabaseAnonKey: "{SUPABASE_ANON_KEY}"\n'
+        f'  supabaseAnonKey: "{SUPABASE_ANON_KEY}",\n'
+        f'  stravaClientId: "{strava.STRAVA_CLIENT_ID}"\n'
         f"}};\n"
     )
     return Response(content=js, media_type="application/javascript")
+
+
+# ── Strava OAuth callback ─────────────────────────────────────────────
+
+@app.get("/strava/callback")
+async def strava_callback(code: str = Query(default=None),
+                          state: str = Query(default=None),
+                          error: str = Query(default=None)):
+    if error or not code:
+        return RedirectResponse("/?strava=denied")
+    user_id = verify_token(state) if state else None
+    if not user_id:
+        return RedirectResponse("/?strava=error")
+    try:
+        tokens = await strava.exchange_code(code)
+        await save_strava_connection(user_id, tokens)
+        log.info("Strava connected: user=%s athlete=%s",
+                 user_id, (tokens.get("athlete") or {}).get("id"))
+        return RedirectResponse("/?strava=connected")
+    except Exception as exc:
+        log.warning("Strava token exchange failed: %s", exc)
+        return RedirectResponse("/?strava=error")
+
+
+async def _strava_fresh_token(user_id: str) -> str | None:
+    """Return a valid access token for the user, refreshing if expired."""
+    conn = await get_strava_connection(user_id)
+    if not conn:
+        return None
+    now = int(datetime.now(timezone.utc).timestamp())
+    if conn["expires_at"] > now + 60:
+        return conn["access_token"]
+    try:
+        tokens = await strava.refresh_tokens(conn["refresh_token"])
+        await save_strava_connection(user_id, tokens)
+        return tokens["access_token"]
+    except Exception as exc:
+        log.warning("Strava token refresh failed: %s", exc)
+        return None
+
+
+async def _strava_upload_task(user_id: str, ride_id: str, ride: dict):
+    """Background: upload a completed ride to Strava and link the activity."""
+    token = await _strava_fresh_token(user_id)
+    if not token:
+        return
+
+    samples = ride.get("power_samples") or []
+    if len(samples) < 30:
+        return   # nothing meaningful to upload
+
+    start = datetime.now(timezone.utc) - timedelta(seconds=ride.get("elapsed", len(samples)))
+    name  = ride.get("workout_name") or "FreeTrain Workout"
+    tcx   = strava.build_tcx(start, samples, name)
+
+    activity_id = await strava.upload_activity(token, tcx, name)
+    if activity_id:
+        await set_ride_strava_id(ride_id, activity_id)
+        rides = await get_rides(user_id)
+        await _broadcast(user_id, {"type": "history_updated", "rides": rides})
+        await _broadcast(user_id, {
+            "type":        "strava_uploaded",
+            "activity_id": activity_id,
+            "message":     "Ride uploaded to Strava",
+        })
+    else:
+        await _broadcast(user_id, {
+            "type":    "error",
+            "message": "Strava upload failed — the ride is still saved in FreeTrain.",
+        })
+
+
+async def _broadcast_strava_status(user_id: str):
+    conn = await get_strava_connection(user_id) if strava.enabled() else None
+    await _broadcast(user_id, {
+        "type":         "strava_status",
+        "configured":   strava.enabled(),
+        "connected":    bool(conn),
+        "athlete_name": (conn or {}).get("athlete_name", ""),
+    })
 
 
 # ── Broadcast ─────────────────────────────────────────────────────────
@@ -62,7 +147,7 @@ async def _broadcast(user_id: str, msg: dict):
     if msg.get("type") == "save_ride":
         ride_data = msg.get("ride", {})
         if ride_data:
-            await save_ride(user_id, ride_data)
+            saved = await save_ride(user_id, ride_data)
             log.info(
                 "Ride saved  user=%s  elapsed=%.0fs  NP=%.0fW  TSS=%.1f",
                 user_id,
@@ -92,6 +177,12 @@ async def _broadcast(user_id: str, msg: dict):
                 })
 
             await _broadcast(user_id, {"type": "history_updated", "rides": rides_all})
+
+            # ── Strava auto-upload (background) ──────────────────────────
+            if strava.enabled() and saved:
+                asyncio.create_task(
+                    _strava_upload_task(user_id, saved["id"], ride_data)
+                )
         return
 
     if msg.get("type") == "live_data" and user_id in _engines and "power" in msg:
@@ -273,6 +364,17 @@ async def _handle(user_id: str, msg: dict):
         await _broadcast(user_id, {"type": "workouts_updated", "workouts": workouts})
         await _broadcast(user_id, {"type": "plan_updated", "plan": plan})
         await _broadcast(user_id, {"type": "plan_cleared"})
+
+    # ── Strava ──
+    elif action == "strava_status":
+        await _broadcast_strava_status(user_id)
+
+    elif action == "strava_disconnect":
+        conn = await get_strava_connection(user_id)
+        if conn:
+            await strava.deauthorize(conn["access_token"])
+            await delete_strava_connection(user_id)
+        await _broadcast_strava_status(user_id)
 
 
 # ── BLE tasks ─────────────────────────────────────────────────────────

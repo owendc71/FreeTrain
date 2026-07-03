@@ -78,7 +78,7 @@ async def delete_workout(user_id: str, workout_id: str):
 # ── Rides ──────────────────────────────────────────────────────────
 
 _RIDE_COLS = ("id,workout_name,date,elapsed,total_duration,"
-              "avg_power,normalized_power,intensity_factor,tss,ftp,completed")
+              "avg_power,normalized_power,intensity_factor,tss,ftp,completed,strava_id")
 
 
 async def get_rides(user_id: str) -> list[dict]:
@@ -105,7 +105,8 @@ async def save_ride(user_id: str, ride: dict):
         "completed":        ride.get("completed", False),
         "power_samples":    ride.get("power_samples", []),
     }
-    await _run(lambda: db.table("rides").insert(payload).execute())
+    r = await _run(lambda: db.table("rides").insert(payload).execute())
+    return r.data[0] if r.data else None
 
 
 async def delete_ride(user_id: str, ride_id: str):
@@ -214,6 +215,43 @@ async def update_workout_intervals(workout_id: str, intervals: list[dict]):
     await _run(lambda: db.table("workouts")
                           .update({"intervals": intervals})
                           .eq("id", workout_id)
+                          .execute())
+
+
+# ── Strava ─────────────────────────────────────────────────────────
+
+async def get_strava_connection(user_id: str) -> Optional[dict]:
+    r = await _run(lambda: db.table("strava_connections")
+                              .select("*")
+                              .eq("user_id", user_id)
+                              .execute())
+    return r.data[0] if r.data else None
+
+
+async def save_strava_connection(user_id: str, tokens: dict):
+    athlete = tokens.get("athlete") or {}
+    name = f'{athlete.get("firstname", "")} {athlete.get("lastname", "")}'.strip()
+    payload = {
+        "user_id":       user_id,
+        "athlete_id":    athlete.get("id"),
+        "access_token":  tokens["access_token"],
+        "refresh_token": tokens["refresh_token"],
+        "expires_at":    tokens["expires_at"],
+    }
+    if name:
+        payload["athlete_name"] = name
+    await _run(lambda: db.table("strava_connections").upsert(payload).execute())
+
+
+async def delete_strava_connection(user_id: str):
+    await _run(lambda: db.table("strava_connections").delete()
+                          .eq("user_id", user_id).execute())
+
+
+async def set_ride_strava_id(ride_id: str, strava_id: int):
+    await _run(lambda: db.table("rides")
+                          .update({"strava_id": strava_id})
+                          .eq("id", ride_id)
                           .execute())
 
 

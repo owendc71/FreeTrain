@@ -140,6 +140,14 @@ function handleMessage(msg) {
       if (window._planGen) window._planGen.showInsights(msg);
       break;
 
+    case 'strava_status':
+      updateStravaUI(msg);
+      break;
+
+    case 'strava_uploaded':
+      toast(msg.message || 'Ride uploaded to Strava');
+      break;
+
     case 'error':
       toast(msg.message || 'An error occurred');
       break;
@@ -394,6 +402,32 @@ function resetRideUI() {
   if (state.selected) previewWorkout(state.selected.id);
 }
 
+// ─── Strava ───────────────────────────────────────────────────────
+function updateStravaUI({ configured, connected, athlete_name }) {
+  const status  = document.getElementById('strava-status-text');
+  const connect = document.getElementById('strava-connect-btn');
+  const disc    = document.getElementById('strava-disconnect-btn');
+  if (!status) return;
+
+  if (configured === false) {
+    status.textContent      = 'Not configured — add STRAVA_CLIENT_ID / STRAVA_CLIENT_SECRET to .env';
+    connect.style.display   = 'none';
+    disc.style.display      = 'none';
+    return;
+  }
+  if (connected) {
+    status.textContent    = athlete_name
+      ? `Connected as ${athlete_name} — rides sync automatically`
+      : 'Connected — rides sync automatically';
+    connect.style.display = 'none';
+    disc.style.display    = 'inline-flex';
+  } else {
+    status.textContent    = 'Not connected';
+    connect.style.display = 'inline-flex';
+    disc.style.display    = 'none';
+  }
+}
+
 // ─── Scan / devices ───────────────────────────────────────────────
 function setScanStatus(text, spinning) {
   const el = document.getElementById('scan-status');
@@ -542,6 +576,7 @@ function renderHistory(rides) {
       </div>
 
       <div class="ride-card-actions">
+        ${ride.strava_id ? `<a class="strava-view" href="https://www.strava.com/activities/${ride.strava_id}" target="_blank" rel="noopener">View on Strava ↗</a>` : ''}
         <button class="btn btn-stop" data-delete="${ride.id}" style="font-size:12px;padding:5px 12px">
           Delete
         </button>
@@ -568,6 +603,22 @@ window.startApp = function(token, serverFtp) {
     if (ftpInput) ftpInput.value = serverFtp;
   }
   connectWS();
+  window.sendWS({ action: 'strava_status' });
+
+  // Feedback after returning from the Strava OAuth redirect
+  const sp = new URLSearchParams(location.search);
+  if (sp.has('strava')) {
+    const result = sp.get('strava');
+    history.replaceState({}, '', location.pathname);
+    if (result === 'connected') {
+      toast('Strava connected! Completed rides will sync automatically.');
+      document.querySelector('[data-tab="devices"]')?.click();
+    } else if (result === 'denied') {
+      toast('Strava connection was cancelled.');
+    } else {
+      toast('Strava connection failed — try again.');
+    }
+  }
 };
 
 // ─── UI event wiring ──────────────────────────────────────────────
@@ -648,6 +699,27 @@ document.addEventListener('DOMContentLoaded', () => {
   // Disconnect all
   document.getElementById('disconnect-btn').addEventListener('click', () => {
     window.sendWS({ action: 'disconnect' });
+  });
+
+  // Strava connect / disconnect
+  document.getElementById('strava-connect-btn')?.addEventListener('click', () => {
+    const cid = window.APP_CONFIG?.stravaClientId;
+    if (!cid) { toast('Strava is not configured on this server.'); return; }
+    const redirect = `${location.origin}/strava/callback`;
+    location.href =
+      'https://www.strava.com/oauth/authorize' +
+      `?client_id=${cid}` +
+      `&redirect_uri=${encodeURIComponent(redirect)}` +
+      '&response_type=code' +
+      '&approval_prompt=auto' +
+      '&scope=read,activity:write' +
+      `&state=${encodeURIComponent(_wsToken)}`;
+  });
+
+  document.getElementById('strava-disconnect-btn')?.addEventListener('click', () => {
+    if (confirm('Disconnect Strava? New rides will no longer sync.')) {
+      window.sendWS({ action: 'strava_disconnect' });
+    }
   });
 
   // Init creator and planner
