@@ -130,19 +130,6 @@ class WorkoutChart {
     const xOf  = t => P.left + (t / total) * cW;
     const yOf  = w => P.top  + cH - (w / maxP) * cH;
 
-    // ── FTP reference line ──
-    ctx.save();
-    ctx.strokeStyle = 'rgba(21,128,61,0.35)';
-    ctx.lineWidth   = 1;
-    ctx.setLineDash([5, 5]);
-    const ftpY = yOf(this.ftp);
-    ctx.beginPath(); ctx.moveTo(P.left, ftpY); ctx.lineTo(P.left + cW, ftpY); ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillStyle = 'rgba(21,128,61,0.55)';
-    ctx.font      = '10px Inter, -apple-system, sans-serif';
-    ctx.fillText('FTP', P.left + 4, ftpY - 4);
-    ctx.restore();
-
     // ── Interval bars ──
     let tOff = 0;
     for (const iv of this._intervals) {
