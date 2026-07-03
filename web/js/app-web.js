@@ -285,8 +285,8 @@ function _onLive(msg) {
   setMetric('m-elapsed',   fmtTime(msg.elapsed));
   setMetric('m-remaining', fmtTime(msg.remaining));
 
-  // Interval info
-  const pct       = state.ftp ? Math.round((msg.target / state.ftp) * 100) : 0;
+  // Interval info (zoneName expects a fraction of FTP)
+  const pct       = state.ftp ? msg.target / state.ftp : 0;
   const ivTotal   = state.selected?.intervals?.length ?? '?';
   const ivBadge   = `${msg.interval_idx + 1}/${ivTotal}  ${WorkoutChart.zoneName(pct)}`;
   const ivCountEl = document.getElementById('interval-countdown');

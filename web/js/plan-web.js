@@ -8,7 +8,9 @@
 const PlanWebEngine = (() => {
 
   // ── Interval primitives ─────────────────────────────────────────
-  const iv = (dur, pct, label) => ({ duration: dur * 60, power_pct: pct, label });
+  // power_pct is a fraction of FTP (0.65 = 65%) to match user-created
+  // workouts, the chart, and the workout engine.
+  const iv = (dur, pct, label) => ({ duration: dur * 60, power_pct: pct / 100, label, name: label });
   const wu  = (d = 10) => iv(d,  60, 'Warm-up');
   const cd  = (d =  5) => iv(d,  55, 'Cool-down');
   const z2  = d        => iv(d,  65, 'Endurance');
@@ -205,7 +207,9 @@ const PlanWebEngine = (() => {
       ...workout,
       intervals: workout.intervals.map(iv => ({
         ...iv,
-        power_pct: SKIP.has(iv.label) ? iv.power_pct : Math.max(40, Math.round(iv.power_pct * (1 + factor))),
+        power_pct: SKIP.has(iv.label)
+          ? iv.power_pct
+          : Math.max(0.40, Math.round(iv.power_pct * (1 + factor) * 1000) / 1000),
       })),
     };
   }

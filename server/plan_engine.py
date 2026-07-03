@@ -15,7 +15,9 @@ from typing import Optional
 # ── Low-level interval primitives ─────────────────────────────────────
 
 def _iv(dur_min: int, pct: int, label: str) -> dict:
-    return {"duration": dur_min * 60, "power_pct": pct, "label": label}
+    # power_pct is stored as a fraction of FTP (0.65 = 65%) to match
+    # user-created workouts, the chart, and the workout engine.
+    return {"duration": dur_min * 60, "power_pct": pct / 100, "label": label, "name": label}
 
 def _wu(d: int = 10) -> dict: return _iv(d,  60, "Warm-up")
 def _cd(d: int =  5) -> dict: return _iv(d,  55, "Cool-down")
@@ -406,5 +408,5 @@ def apply_adaptation(workout: dict, factor: float) -> dict:
         if iv.get("label") not in SKIP_LABELS:
             pct = iv.get("power_pct", 0)
             if pct > 0:
-                iv["power_pct"] = max(round(pct * (1 + factor)), 40)
+                iv["power_pct"] = max(round(pct * (1 + factor), 3), 0.40)
     return w

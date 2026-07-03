@@ -98,8 +98,9 @@ class WebWorkoutEngine {
   }
 
   _targetWatts() {
+    // power_pct is a fraction of FTP (0.65 = 65%)
     const iv = this._intervals[this._ivIdx];
-    return Math.round(((iv?.power_pct ?? 100) / 100) * this._ftp) + this._powerOffset;
+    return Math.round((iv?.power_pct ?? 1) * this._ftp) + this._powerOffset;
   }
 
   _applyTarget() {
