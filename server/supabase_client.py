@@ -78,7 +78,7 @@ async def delete_workout(user_id: str, workout_id: str):
 # ── Rides ──────────────────────────────────────────────────────────
 
 _RIDE_COLS = ("id,workout_name,date,elapsed,total_duration,"
-              "avg_power,normalized_power,intensity_factor,tss,ftp,completed,strava_id")
+              "avg_power,normalized_power,intensity_factor,tss,ftp,completed,strava_id,source")
 
 
 async def get_rides(user_id: str) -> list[dict]:
@@ -104,7 +104,10 @@ async def save_ride(user_id: str, ride: dict):
         "ftp":              ride.get("ftp", 250),
         "completed":        ride.get("completed", False),
         "power_samples":    ride.get("power_samples", []),
+        "source":           ride.get("source", "freetrain"),
     }
+    if ride.get("strava_id"):
+        payload["strava_id"] = ride["strava_id"]
     r = await _run(lambda: db.table("rides").insert(payload).execute())
     return r.data[0] if r.data else None
 

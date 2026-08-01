@@ -16,11 +16,11 @@
   <a class="logo" href="/"><span class="accent-word">Free</span>Train</a>
 
   <nav class="tab-nav">
-    <button class="tab-btn active" data-tab="ride">Ride</button>
+    <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+    <button class="tab-btn"        data-tab="ride">Ride</button>
     <button class="tab-btn"        data-tab="create">Create</button>
     <button class="tab-btn"        data-tab="plan">Plan</button>
     <button class="tab-btn"        data-tab="devices">Devices</button>
-    <button class="tab-btn"        data-tab="history">History</button>
   </nav>
 
   <div class="header-status" style="gap:10px">
@@ -37,8 +37,95 @@
 
 <main>
 
+  <!-- ══════════════════════════ DASHBOARD TAB ══════════════════════════ -->
+  <section id="tab-dashboard" class="tab-content active">
+
+    <div class="history-header">
+      <h2>Dashboard</h2>
+      <span class="history-count" id="history-count"></span>
+    </div>
+
+    <!-- Career totals -->
+    <div class="history-summary" id="history-summary" style="display:none">
+      <div class="hs-stat">
+        <span class="hs-value" id="hs-rides">0</span>
+        <span class="hs-label">Rides</span>
+      </div>
+      <div class="hs-stat">
+        <span class="hs-value" id="hs-time">0h</span>
+        <span class="hs-label">Total Time</span>
+      </div>
+      <div class="hs-stat">
+        <span class="hs-value" id="hs-tss">0</span>
+        <span class="hs-label">Total TSS</span>
+      </div>
+      <div class="hs-stat">
+        <span class="hs-value" id="hs-completion">—</span>
+        <span class="hs-label">Completion Rate</span>
+      </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="dash-charts-grid">
+
+      <div class="dash-card">
+        <div class="dash-card-head">
+          <h3>Weekly Training Load</h3>
+          <span class="dash-card-sub" id="dash-load-sub"></span>
+        </div>
+        <div class="dash-chart-wrap">
+          <canvas id="dash-load-canvas"></canvas>
+          <div class="dash-chart-empty" id="dash-load-empty" style="display:none">
+            Complete a workout to see your training load build up here.
+          </div>
+        </div>
+      </div>
+
+      <div class="dash-card">
+        <div class="dash-card-head">
+          <h3>Plan Adherence</h3>
+          <span class="dash-card-sub" id="dash-adherence-sub"></span>
+        </div>
+        <div class="dash-chart-wrap">
+          <canvas id="dash-adherence-canvas"></canvas>
+          <div class="dash-chart-empty" id="dash-adherence-empty" style="display:none">
+            Schedule workouts on the Plan calendar to track adherence here.
+          </div>
+        </div>
+        <div class="dash-legend">
+          <span class="dash-legend-item"><span class="dash-legend-dot" style="background:#16a34a"></span>Good ≥85%</span>
+          <span class="dash-legend-item"><span class="dash-legend-dot" style="background:#d97706"></span>Fair 60–84%</span>
+          <span class="dash-legend-item"><span class="dash-legend-dot" style="background:#dc2626"></span>Low &lt;60%</span>
+        </div>
+      </div>
+
+      <div class="dash-card dash-card-wide">
+        <div class="dash-card-head">
+          <h3>Time in Zone</h3>
+          <span class="dash-card-sub">by average power, last 90 days</span>
+        </div>
+        <div class="dash-zone-bar" id="dash-zone-bar"></div>
+        <div class="dash-legend" id="dash-zone-legend"></div>
+        <div class="dash-chart-empty" id="dash-zone-empty" style="display:none">
+          Ride with a power meter or smart trainer to see your zone breakdown.
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Recent activity -->
+    <h3 class="dash-section-title">Recent Activity</h3>
+
+    <div class="history-empty" id="history-empty" style="display:none">
+      <p>No rides yet. Complete a workout and it will appear here.</p>
+    </div>
+
+    <div class="history-list" id="history-list"></div>
+
+  </section>
+
   <!-- ═══════════════════════════ RIDE TAB ═══════════════════════════ -->
-  <section id="tab-ride" class="tab-content active">
+  <section id="tab-ride" class="tab-content">
 
     <div class="ride-toolbar">
       <div class="select-wrap">
@@ -315,43 +402,6 @@
 
     </div>
   </section>
-
-  <!-- ════════════════════════════ HISTORY TAB ═════════════════════════ -->
-  <section id="tab-history" class="tab-content">
-
-    <div class="history-header">
-      <h2>Ride History</h2>
-      <span class="history-count" id="history-count"></span>
-    </div>
-
-    <!-- Career totals -->
-    <div class="history-summary" id="history-summary" style="display:none">
-      <div class="hs-stat">
-        <span class="hs-value" id="hs-rides">0</span>
-        <span class="hs-label">Rides</span>
-      </div>
-      <div class="hs-stat">
-        <span class="hs-value" id="hs-time">0h</span>
-        <span class="hs-label">Total Time</span>
-      </div>
-      <div class="hs-stat">
-        <span class="hs-value" id="hs-tss">0</span>
-        <span class="hs-label">Total TSS</span>
-      </div>
-      <div class="hs-stat">
-        <span class="hs-value" id="hs-completion">—</span>
-        <span class="hs-label">Completion Rate</span>
-      </div>
-    </div>
-
-    <div class="history-empty" id="history-empty" style="display:none">
-      <p>No rides yet. Complete a workout and it will appear here.</p>
-    </div>
-
-    <div class="history-list" id="history-list"></div>
-
-  </section>
-
 </main>
 
 <div class="toast" id="toast"></div>
@@ -497,6 +547,7 @@
 <script src="/js/engine-web.js"></script>
 <script src="/js/plan-web.js"></script>
 <script src="/js/strava-web.js"></script>
+<script src="/js/dashboard.js"></script>
 <script src="/js/app-web.js"></script>
 <script src="/js/auth.js"></script>
 </body>

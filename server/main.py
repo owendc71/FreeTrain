@@ -129,6 +129,73 @@ async def _strava_upload_task(user_id: str, ride_id: str, ride: dict):
         })
 
 
+async def _run_adaptation(user_id: str):
+    """Recompute adaptation from all rides and adjust upcoming generated workouts."""
+    rides_all = await get_rides(user_id)
+    factor, status, message = compute_adaptation(rides_all)
+    upcoming  = await get_upcoming_generated_workouts(user_id, limit=3)
+    adjusted  = 0
+    for entry in upcoming:
+        w   = entry["workout"]
+        new = apply_adaptation(w, factor)
+        if new["intervals"] != w["intervals"]:
+            await update_workout_intervals(w["id"], new["intervals"])
+            adjusted += 1
+
+    if upcoming:
+        await _broadcast(user_id, {
+            "type":              "adaptation_feedback",
+            "status":            status,
+            "message":           message,
+            "workouts_adjusted": adjusted,
+        })
+    if adjusted:
+        workouts = await get_workouts(user_id)
+        await _broadcast(user_id, {"type": "workouts_updated", "workouts": workouts})
+
+
+# One sync per user at a time, throttled to every 10 minutes
+_strava_sync_at: dict[str, float] = {}
+
+
+async def _strava_sync_task(user_id: str):
+    """Import new Strava activities as rides, then re-run plan adaptation."""
+    import time
+    if time.monotonic() - _strava_sync_at.get(user_id, 0) < 600:
+        return
+
+    token = await _strava_fresh_token(user_id)
+    if not token:
+        return
+    _strava_sync_at[user_id] = time.monotonic()
+
+    rides_all = await get_rides(user_id)
+    known_ids = {r.get("strava_id") for r in rides_all if r.get("strava_id")}
+    ftp = next((r.get("ftp") for r in rides_all if r.get("ftp")), 250)
+
+    after = int((datetime.now(timezone.utc) - timedelta(days=60)).timestamp())
+    acts  = await strava.list_activities(token, after)
+
+    imported = 0
+    for act in acts:
+        if act.get("id") in known_ids:
+            continue
+        ride = strava.activity_to_ride(act, ftp)
+        await save_ride(user_id, ride)
+        imported += 1
+
+    if imported:
+        log.info("Strava import: user=%s  activities=%d", user_id, imported)
+        rides = await get_rides(user_id)
+        await _broadcast(user_id, {"type": "history_updated", "rides": rides})
+        await _broadcast(user_id, {
+            "type":    "strava_imported",
+            "count":   imported,
+            "message": f"Imported {imported} ride{'s' if imported != 1 else ''} from Strava",
+        })
+        await _run_adaptation(user_id)
+
+
 async def _broadcast_strava_status(user_id: str):
     conn = await get_strava_connection(user_id) if strava.enabled() else None
     await _broadcast(user_id, {
@@ -158,25 +225,8 @@ async def _broadcast(user_id: str, msg: dict):
 
             # ── Adaptive plan adjustment ──────────────────────────────────
             rides_all = await get_rides(user_id)
-            factor, status, message = compute_adaptation(rides_all)
-            upcoming  = await get_upcoming_generated_workouts(user_id, limit=3)
-            adjusted  = 0
-            for entry in upcoming:
-                w   = entry["workout"]
-                new = apply_adaptation(w, factor)
-                if new["intervals"] != w["intervals"]:
-                    await update_workout_intervals(w["id"], new["intervals"])
-                    adjusted += 1
-
-            if upcoming:
-                await _broadcast(user_id, {
-                    "type":               "adaptation_feedback",
-                    "status":             status,
-                    "message":            message,
-                    "workouts_adjusted":  adjusted,
-                })
-
             await _broadcast(user_id, {"type": "history_updated", "rides": rides_all})
+            await _run_adaptation(user_id)
 
             # ── Strava auto-upload (background) ──────────────────────────
             if strava.enabled() and saved:
@@ -225,6 +275,10 @@ async def ws_endpoint(ws: WebSocket, token: str = Query(default=None)):
         "plan":     plan,
         **ble.get_status(),
     }))
+
+    # Pull any new Strava activities in the background
+    if strava.enabled():
+        asyncio.create_task(_strava_sync_task(user_id))
 
     try:
         while True:

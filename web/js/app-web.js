@@ -33,6 +33,10 @@ let _plan   = {};
 // sendWS is the universal message bus — routes to _handleAction in web mode
 window.sendWS = msg => _handleAction(msg);
 
+function _syncDashboard() {
+  if (window._dashboard) window._dashboard.update({ rides: _rides, plan: _plan });
+}
+
 // ── Startup ───────────────────────────────────────────────────────
 window.startApp = async function(token) {
   const { createClient } = window.supabase;
@@ -67,7 +71,67 @@ window.startApp = async function(token) {
   updateStravaUI();
 
   await _loadInitialData();
+
+  // Pull any new Strava activities in the background
+  if (_strava.isConnected()) _stravaSync();
 };
+
+// ── Strava activity import ────────────────────────────────────────
+async function _stravaSync() {
+  try {
+    const after = Math.floor(Date.now() / 1000) - 60 * 86400;   // last 60 days
+    const acts  = await _strava.listActivities(after);
+    if (!acts.length) return;
+
+    const knownIds = new Set(_rides.filter(r => r.strava_id).map(r => r.strava_id));
+    const ftp      = _rides.find(r => r.ftp)?.ftp || state.ftp || 250;
+
+    let imported = 0;
+    for (const act of acts) {
+      if (knownIds.has(act.id)) continue;
+      const ride = StravaManager.activityToRide(act, ftp);
+      const { data } = await _sb.from('rides')
+        .insert({ user_id: _userId, ...ride }).select().single();
+      if (data) { _rides.push(data); imported++; }
+    }
+    if (!imported) return;
+
+    _rides.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    renderHistory(_rides);
+    if (window._planner) window._planner.update({ rides: _rides });
+    _syncDashboard();
+    toast(`Imported ${imported} ride${imported === 1 ? '' : 's'} from Strava`);
+
+    await _runAdaptation();
+  } catch (e) {
+    console.error('Strava sync:', e);
+  }
+}
+
+// ── Adaptive plan: recompute and adjust the next generated workouts ──
+async function _runAdaptation() {
+  const result = PlanWebEngine.computeAdaptation(_rides);
+  if (window._planGen) window._planGen.showInsights(result);
+  if (Math.abs(result.factor) < 0.005) return;
+
+  const today   = new Date().toISOString().slice(0, 10);
+  const entries = Object.entries(_plan)
+    .filter(([d]) => d >= today)
+    .sort(([a], [b]) => a.localeCompare(b));
+
+  let adjusted = 0;
+  for (const [, wid] of entries) {
+    if (adjusted >= 3) break;
+    const w = state.workouts.find(x => x.id === wid && (x.name || '').startsWith('FreeTrain · '));
+    if (!w) continue;
+    const adapted = PlanWebEngine.applyAdaptation(w, result.factor);
+    if (JSON.stringify(adapted.intervals) === JSON.stringify(w.intervals)) continue;
+    await _sb.from('workouts').update({ intervals: adapted.intervals }).eq('id', w.id);
+    w.intervals = adapted.intervals;
+    adjusted++;
+  }
+  if (adjusted && state.selected) previewWorkout(state.selected.id);
+}
 
 async function _loadInitialData() {
   const [workouts, rides, plan] = await Promise.all([
@@ -79,6 +143,7 @@ async function _loadInitialData() {
   updateWorkoutList(workouts);
   renderHistory(rides);
   if (window._planner) window._planner.update({ plan, workouts, rides });
+  _syncDashboard();
 
   // Show today's plan banner on ride tab
   const today = new Date().toISOString().split('T')[0];
@@ -155,6 +220,7 @@ async function _handleAction(msg) {
       _rides = _rides.filter(r => r.id !== msg.ride_id);
       renderHistory(_rides);
       if (window._planner) window._planner.update({ rides: _rides });
+      _syncDashboard();
       break;
     }
 
@@ -198,6 +264,7 @@ async function _handleAction(msg) {
       }
       _plan = await _fetchPlan();
       if (window._planner) window._planner.update({ plan: _plan });
+      _syncDashboard();
       break;
     }
 
@@ -328,13 +395,11 @@ async function _onSaveRide(ride) {
   resetRideUI();
   renderHistory(_rides);
 
-  // Adaptive plan feedback
-  const generated = _rides.filter(r => (r.workout_name || '').startsWith('FreeTrain · '));
-  if (generated.length && window._planGen) {
-    window._planGen.showInsights(PlanWebEngine.computeAdaptation(generated));
-  }
+  // Adaptive plan: recompute and adjust upcoming generated workouts
+  await _runAdaptation();
 
   if (window._planner) window._planner.update({ rides: _rides });
+  _syncDashboard();
 
   // Strava auto-upload (background — doesn't block the UI)
   if (data && _strava && _strava.isConnected()) {
@@ -396,6 +461,7 @@ async function _generatePlan(profile) {
   _plan = await _fetchPlan();
   updateWorkoutList(workouts);
   if (window._planner) window._planner.update({ plan: _plan, workouts });
+  _syncDashboard();
   if (window._pgClose) window._pgClose();
   toast(`6-week plan created — ${count} sessions scheduled.`);
 }
@@ -413,6 +479,7 @@ async function _clearGeneratedPlan(silent = false) {
     _plan = await _fetchPlan();
     updateWorkoutList(workouts);
     if (window._planner) window._planner.update({ plan: _plan, workouts });
+    _syncDashboard();
     toast('Generated plan cleared.');
   }
 }
@@ -661,7 +728,10 @@ document.addEventListener('DOMContentLoaded', () => {
       document.querySelectorAll('.tab-content').forEach(s => s.classList.remove('active'));
       btn.classList.add('active');
       document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
-      if (btn.dataset.tab === 'history') renderHistory(_rides);
+      if (btn.dataset.tab === 'dashboard') {
+        renderHistory(_rides);
+        if (window._dashboard) window._dashboard.refresh();
+      }
     });
   });
 
@@ -731,9 +801,10 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Init creator, planner, plan generator
-  window._creator = new WorkoutCreator();
-  window._planner = new CalendarPlanner();
-  window._planGen = new PlanGenerator();
+  window._creator   = new WorkoutCreator();
+  window._planner   = new CalendarPlanner();
+  window._planGen   = new PlanGenerator();
+  window._dashboard = new TrainingDashboard();
 
   window._pgClose = () => {
     const o = document.getElementById('pg-overlay');

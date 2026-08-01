@@ -181,8 +181,20 @@ const PlanWebEngine = (() => {
     return types.map((type, i) => ({ date: dates[i], workout: buildSession(type, effMins) }));
   }
 
+  // Two signals: adherence of structured in-app rides, plus a training-load
+  // ramp check over ALL rides (including imported Strava activities).
   function computeAdaptation(rides) {
-    const recent = rides.filter(r => r.completed).slice(0, 5);
+    const rideDate = r => {
+      const d = new Date(String(r.date || '').slice(0, 10) + 'T12:00:00');
+      return isNaN(d) ? null : d;
+    };
+
+    // ── Signal 1: adherence over recent structured rides ────────────
+    const structured = rides
+      .filter(r => r.completed && (r.source || 'freetrain') !== 'strava')
+      .sort((a, b) => (rideDate(b) || 0) - (rideDate(a) || 0));
+    const recent = structured.slice(0, 5);
+
     if (!recent.length) return { factor: 0, status: 'on_track', message: 'Complete your first workout to unlock adaptive adjustments.' };
 
     const scores = recent.map(r => {
@@ -193,11 +205,42 @@ const PlanWebEngine = (() => {
     });
     const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
     const n   = scores.length;
+    const pct = (avg * 100).toFixed(0);
 
-    if (avg >= 0.95) return { factor: 0.08, status: 'adjusted_up',   message: `You're nailing it — ${(avg*100).toFixed(0)}% adherence across your last ${n} rides. Next sessions bumped up.` };
-    if (avg >= 0.82) return { factor: 0,    status: 'on_track',      message: `Solid consistency (${(avg*100).toFixed(0)}% adherence). Plan progressing as intended.` };
-    if (avg >= 0.65) return { factor:-0.08, status: 'adjusted_down', message: `Adherence at ${(avg*100).toFixed(0)}% — upcoming sessions eased slightly.` };
-    return              { factor:-0.15, status: 'adjusted_down', message: `Adherence at ${(avg*100).toFixed(0)}% — significant load reduction applied.` };
+    let factor, note;
+    if      (avg >= 0.95) { factor = 0.08;  note = `You're nailing it — ${pct}% adherence across your last ${n} rides.`; }
+    else if (avg >= 0.82) { factor = 0;     note = `Solid consistency (${pct}% adherence).`; }
+    else if (avg >= 0.65) { factor = -0.08; note = `Adherence at ${pct}% — upcoming sessions eased slightly.`; }
+    else                  { factor = -0.15; note = `Adherence at ${pct}% — significant load reduction applied.`; }
+
+    // ── Signal 2: training-load ramp (all rides incl. Strava) ───────
+    const now = Date.now();
+    let acute = 0, chronic = 0;
+    rides.forEach(r => {
+      const d = rideDate(r);
+      if (!d) return;
+      const daysAgo = (now - d.getTime()) / 86400000;
+      const tss = r.tss || 0;
+      if (daysAgo >= 0 && daysAgo < 7)        acute   += tss;
+      else if (daysAgo >= 7 && daysAgo < 28)  chronic += tss;
+    });
+
+    const chronicWeekly = chronic / 3;
+    if (chronicWeekly >= 30) {
+      const ramp = acute / chronicWeekly;
+      if (ramp > 1.35) {
+        factor -= 0.05;
+        note += ` Weekly load is ramping fast (${acute.toFixed(0)} TSS vs a ${chronicWeekly.toFixed(0)} TSS/week average) — extra intensity pulled back.`;
+      } else if (ramp < 0.60 && avg >= 0.82) {
+        factor += 0.03;
+        note += ` Recent load has been light, so there's room to push.`;
+      }
+    }
+
+    factor = Math.max(-0.15, Math.min(0.10, factor));
+    const status = factor > 0.02 ? 'adjusted_up' : factor < -0.02 ? 'adjusted_down' : 'on_track';
+    if (status === 'on_track' && !note.endsWith('push.')) note += ' Plan is progressing as intended.';
+    return { factor, status, message: note };
   }
 
   function applyAdaptation(workout, factor) {

@@ -337,60 +337,95 @@ def generate_plan(
 
 def compute_adaptation(rides: list[dict]) -> tuple[float, str, str]:
     """
-    Analyse adherence over the last 5 completed rides.
+    Analyse recent training and decide how to adjust upcoming workouts.
+
+    Two signals:
+      1. Adherence – completion rate and intensity of the last 5 structured
+         (in-app) rides. Imported Strava rides are excluded here because
+         they have no target to adhere to.
+      2. Load ramp – total TSS of the last 7 days (all rides, including
+         Strava imports) vs. the weekly average of the previous 3 weeks.
+         Ramping too fast eases the plan; a light week nudges it up.
 
     Returns:
-        factor  – power_pct adjustment multiplier (-0.15 … +0.08)
+        factor  – power_pct adjustment multiplier (-0.15 … +0.10)
         status  – "on_track" | "adjusted_up" | "adjusted_down"
         message – human-readable summary
     """
-    recent = [r for r in rides[:8] if r.get("completed")][:5]
+    def _ride_date(r) -> Optional[date]:
+        try:
+            return date.fromisoformat(str(r.get("date", ""))[:10])
+        except ValueError:
+            return None
+
+    # ── Signal 1: adherence over recent structured rides ──────────────
+    structured = [
+        r for r in rides
+        if r.get("completed") and r.get("source", "freetrain") != "strava"
+    ]
+    structured.sort(key=lambda r: _ride_date(r) or date.min, reverse=True)
+    recent = structured[:5]
 
     if not recent:
         return 0.0, "on_track", "Complete your first workout to unlock adaptive adjustments."
 
     scores: list[float] = []
     for r in recent:
-        total     = r.get("total_duration", 1) or 1
-        elapsed   = r.get("elapsed", 0)
-        completion = min(elapsed / total, 1.05)
-
-        # Intensity factor ratio (0.75 is typical avg IF for a mixed training week)
-        actual_if = r.get("intensity_factor") or 0.75
-        if_ratio  = min(actual_if / 0.75, 1.15)
-
+        total      = r.get("total_duration", 1) or 1
+        completion = min(r.get("elapsed", 0) / total, 1.05)
+        # 0.75 is a typical average IF for a mixed training week
+        actual_if  = r.get("intensity_factor") or 0.75
+        if_ratio   = min(actual_if / 0.75, 1.15)
         scores.append(completion * 0.65 + if_ratio * 0.35)
 
     avg = sum(scores) / len(scores)
     n   = len(scores)
 
     if avg >= 0.95:
-        return (
-            0.08,
-            "adjusted_up",
-            f"You're nailing it — {avg*100:.0f}% adherence across your last {n} rides. "
-            "Next sessions bumped up slightly to keep the stimulus fresh.",
+        factor, note = 0.08, (
+            f"You're nailing it — {avg*100:.0f}% adherence across your last {n} rides."
         )
     elif avg >= 0.82:
-        return (
-            0.0,
-            "on_track",
-            f"Solid consistency ({avg*100:.0f}% adherence). Plan is progressing as intended.",
-        )
+        factor, note = 0.0, f"Solid consistency ({avg*100:.0f}% adherence)."
     elif avg >= 0.65:
-        return (
-            -0.08,
-            "adjusted_down",
-            f"Adherence at {avg*100:.0f}% — upcoming sessions eased slightly "
-            "to help you absorb the load.",
-        )
+        factor, note = -0.08, f"Adherence at {avg*100:.0f}% — upcoming sessions eased slightly."
     else:
-        return (
-            -0.15,
-            "adjusted_down",
-            f"Adherence at {avg*100:.0f}% — significant load reduction applied. "
-            "Focus on finishing sessions before adding intensity.",
+        factor, note = -0.15, (
+            f"Adherence at {avg*100:.0f}% — significant load reduction applied."
         )
+
+    # ── Signal 2: training-load ramp (includes imported Strava rides) ──
+    today = date.today()
+    acute = chronic = 0.0
+    for r in rides:
+        d = _ride_date(r)
+        if d is None:
+            continue
+        days_ago = (today - d).days
+        tss = r.get("tss") or 0
+        if 0 <= days_ago < 7:
+            acute += tss
+        elif 7 <= days_ago < 28:
+            chronic += tss
+
+    chronic_weekly = chronic / 3
+    if chronic_weekly >= 30:      # need some history for the ramp to mean anything
+        ramp = acute / chronic_weekly
+        if ramp > 1.35:
+            factor -= 0.05
+            note += (f" Weekly load is ramping fast ({acute:.0f} TSS vs a "
+                     f"{chronic_weekly:.0f} TSS/week average) — extra intensity pulled back.")
+        elif ramp < 0.60 and avg >= 0.82:
+            factor += 0.03
+            note += " Recent load has been light, so there's room to push."
+
+    factor = max(-0.15, min(0.10, factor))
+    status = ("adjusted_up" if factor > 0.02
+              else "adjusted_down" if factor < -0.02
+              else "on_track")
+    if status == "on_track" and not note.endswith("push."):
+        note += " Plan is progressing as intended."
+    return factor, status, note
 
 
 def apply_adaptation(workout: dict, factor: float) -> dict:

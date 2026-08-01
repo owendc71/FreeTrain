@@ -38,7 +38,7 @@ class StravaManager {
       `&redirect_uri=${encodeURIComponent(redirect)}` +
       '&response_type=code' +
       '&approval_prompt=auto' +
-      '&scope=read,activity:write';
+      '&scope=read,activity:write,activity:read';
   }
 
   // Handles ?code=... after Strava redirects back. Returns true if connected.
@@ -123,6 +123,55 @@ class StravaManager {
     if (!r.ok) return null;
     await this._saveTokens(await r.json());
     return this._conn.access_token;
+  }
+
+  // ── Activity import ───────────────────────────────────────────────
+
+  static BIKE_TYPES = new Set(['Ride', 'VirtualRide', 'GravelRide', 'MountainBikeRide', 'EBikeRide']);
+
+  // Fetch the athlete's cycling activities after the given unix epoch.
+  async listActivities(afterEpoch) {
+    const token = await this._freshToken();
+    if (!token) return [];
+    const r = await fetch(
+      `https://www.strava.com/api/v3/athlete/activities?after=${afterEpoch}&per_page=100`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    if (!r.ok) return [];
+    const acts = await r.json();
+    return acts.filter(a => StravaManager.BIKE_TYPES.has(a.sport_type || a.type));
+  }
+
+  // Convert a Strava activity summary into a FreeTrain ride record.
+  static activityToRide(act, ftp) {
+    const moving = act.moving_time || 0;
+    const hours  = moving / 3600;
+    const avgW   = act.average_watts || 0;
+    const npW    = act.weighted_average_watts || avgW;
+
+    let ifVal = 0, tss;
+    if (npW && ftp) {
+      ifVal = Math.round((npW / ftp) * 100) / 100;
+      tss   = Math.round(hours * ifVal * ifVal * 100 * 10) / 10;
+    } else {
+      tss   = Math.round(hours * 50 * 10) / 10;   // rough estimate without power
+    }
+
+    return {
+      workout_name:     act.name || 'Strava Ride',
+      date:             String(act.start_date_local || '').slice(0, 10),
+      elapsed:          moving,
+      total_duration:   moving,
+      avg_power:        avgW,
+      normalized_power: npW,
+      intensity_factor: ifVal,
+      tss,
+      ftp,
+      completed:        true,
+      power_samples:    [],
+      source:           'strava',
+      strava_id:        act.id,
+    };
   }
 
   // ── Upload ────────────────────────────────────────────────────────

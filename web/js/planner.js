@@ -78,8 +78,10 @@ class CalendarPlanner {
         dots.className = 'cal-dots';
         ridesDone.slice(0, 4).forEach(r => {
           const dot = document.createElement('span');
-          dot.className = 'cal-dot ' + (r.completed ? 'done' : 'partial');
-          dot.title     = r.workout_name || 'Ride';
+          dot.className = 'cal-dot ' + (r.source === 'strava'
+            ? 'strava'
+            : (r.completed ? 'done' : 'partial'));
+          dot.title = (r.source === 'strava' ? 'Strava: ' : '') + (r.workout_name || 'Ride');
           dots.appendChild(dot);
         });
         cell.appendChild(dots);

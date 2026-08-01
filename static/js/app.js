@@ -14,6 +14,7 @@ const state = {
   paused:      false,
   trainerConn: false,
   pmConn:      false,
+  plan:        {},     // date -> workout_id, kept for the dashboard charts
 
   // live workout
   totalDuration:    0,
@@ -74,9 +75,11 @@ function handleMessage(msg) {
       updateWorkoutList(msg.workouts);
       updateDeviceStatus(msg);
       if (msg.rides) renderHistory(msg.rides);
+      state.plan = msg.plan || {};
       if (window._planner) window._planner.update({
         plan: msg.plan, workouts: msg.workouts, rides: msg.rides || [],
       });
+      if (window._dashboard) window._dashboard.update({ rides: msg.rides || [], plan: state.plan });
       break;
 
     case 'workouts_updated':
@@ -117,10 +120,13 @@ function handleMessage(msg) {
     case 'history_updated':
       renderHistory(msg.rides || []);
       if (window._planner) window._planner.update({ rides: msg.rides || [] });
+      if (window._dashboard) window._dashboard.update({ rides: msg.rides || [] });
       break;
 
     case 'plan_updated':
+      state.plan = msg.plan || {};
       if (window._planner) window._planner.update({ plan: msg.plan });
+      if (window._dashboard) window._dashboard.update({ plan: state.plan });
       break;
 
     case 'plan_generated':
@@ -146,6 +152,10 @@ function handleMessage(msg) {
 
     case 'strava_uploaded':
       toast(msg.message || 'Ride uploaded to Strava');
+      break;
+
+    case 'strava_imported':
+      toast(msg.message || 'New Strava rides imported');
       break;
 
     case 'error':
@@ -631,7 +641,10 @@ document.addEventListener('DOMContentLoaded', () => {
       document.querySelectorAll('.tab-content').forEach(s => s.classList.remove('active'));
       btn.classList.add('active');
       document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
-      if (btn.dataset.tab === 'history') window.sendWS({ action: 'get_history' });
+      if (btn.dataset.tab === 'dashboard') {
+        window.sendWS({ action: 'get_history' });
+        if (window._dashboard) window._dashboard.refresh();
+      }
     });
   });
 
@@ -712,7 +725,7 @@ document.addEventListener('DOMContentLoaded', () => {
       `&redirect_uri=${encodeURIComponent(redirect)}` +
       '&response_type=code' +
       '&approval_prompt=auto' +
-      '&scope=read,activity:write' +
+      '&scope=read,activity:write,activity:read' +
       `&state=${encodeURIComponent(_wsToken)}`;
   });
 
@@ -723,9 +736,10 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Init creator and planner
-  window._creator = new WorkoutCreator();
-  window._planner = new CalendarPlanner();
-  window._planGen = new PlanGenerator();
+  window._creator   = new WorkoutCreator();
+  window._planner   = new CalendarPlanner();
+  window._planGen   = new PlanGenerator();
+  window._dashboard = new TrainingDashboard();
 
   // Wire plan generator open button here so it works even if PlanGenerator
   // constructor has a partial failure earlier in the chain.

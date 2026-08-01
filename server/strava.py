@@ -97,6 +97,59 @@ def build_tcx(start: datetime, power_samples: list, name: str) -> str:
     )
 
 
+# ── Activity import ────────────────────────────────────────────────
+
+_BIKE_TYPES = {"Ride", "VirtualRide", "GravelRide", "MountainBikeRide", "EBikeRide"}
+
+
+async def list_activities(access_token: str, after_epoch: int) -> list[dict]:
+    """Fetch the athlete's cycling activities created after the given epoch."""
+    async with httpx.AsyncClient(timeout=30) as client:
+        r = await client.get(
+            f"{_API}/athlete/activities",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"after": after_epoch, "per_page": 100},
+        )
+        if r.status_code >= 400:
+            log.warning("Strava activity list failed: %s", r.text[:200])
+            return []
+        acts = r.json()
+    return [a for a in acts
+            if (a.get("sport_type") or a.get("type")) in _BIKE_TYPES]
+
+
+def activity_to_ride(act: dict, ftp: int) -> dict:
+    """Convert a Strava activity summary into a FreeTrain ride record."""
+    moving = int(act.get("moving_time") or 0)
+    hours  = moving / 3600
+    avg_w  = act.get("average_watts")
+    np_w   = act.get("weighted_average_watts") or avg_w
+
+    if np_w and ftp:
+        if_val = round(np_w / ftp, 2)
+        tss    = round(hours * if_val * if_val * 100, 1)
+    else:
+        # No power data — rough estimate so training load still counts
+        if_val = 0
+        tss    = round(hours * 50, 1)
+
+    return {
+        "workout_name":     act.get("name") or "Strava Ride",
+        "date":             str(act.get("start_date_local") or "")[:10],
+        "elapsed":          moving,
+        "total_duration":   moving,
+        "avg_power":        float(avg_w or 0),
+        "normalized_power": float(np_w or 0),
+        "intensity_factor": if_val,
+        "tss":              tss,
+        "ftp":              ftp,
+        "completed":        True,
+        "power_samples":    [],
+        "source":           "strava",
+        "strava_id":        act.get("id"),
+    }
+
+
 # ── Upload ─────────────────────────────────────────────────────────
 
 async def upload_activity(access_token: str, tcx: str, name: str) -> int | None:
