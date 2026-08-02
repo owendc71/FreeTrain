@@ -15,6 +15,7 @@ const state = {
   trainerConn: false,
   pmConn:      false,
   plan:        {},     // date -> workout_id, kept for the dashboard charts
+  runPlan:     {},     // date -> run plan entry, kept for the dashboard charts
 
   // live workout
   totalDuration:    0,
@@ -75,11 +76,17 @@ function handleMessage(msg) {
       updateWorkoutList(msg.workouts);
       updateDeviceStatus(msg);
       if (msg.rides) renderHistory(msg.rides);
-      state.plan = msg.plan || {};
+      state.plan    = msg.plan     || {};
+      state.runPlan = msg.run_plan || {};
       if (window._planner) window._planner.update({
         plan: msg.plan, workouts: msg.workouts, rides: msg.rides || [],
+        runPlan: state.runPlan, runs: msg.runs || [],
       });
-      if (window._dashboard) window._dashboard.update({ rides: msg.rides || [], plan: state.plan });
+      if (window._dashboard) window._dashboard.update({
+        rides: msg.rides || [], plan: state.plan,
+        runs: msg.runs || [], runPlan: state.runPlan,
+      });
+      if (window._runTab) window._runTab.update({ runs: msg.runs || [] });
       break;
 
     case 'workouts_updated':
@@ -146,6 +153,30 @@ function handleMessage(msg) {
       if (window._planGen) window._planGen.showInsights(msg);
       break;
 
+    case 'runs_updated':
+      if (window._runTab) window._runTab.update({ runs: msg.runs || [] });
+      if (window._planner) window._planner.update({ runs: msg.runs || [] });
+      if (window._dashboard) window._dashboard.update({ runs: msg.runs || [] });
+      break;
+
+    case 'run_plan_updated':
+      state.runPlan = msg.run_plan || {};
+      if (window._planner) window._planner.update({ runPlan: state.runPlan });
+      if (window._dashboard) window._dashboard.update({ runPlan: state.runPlan });
+      break;
+
+    case 'run_plan_generated':
+      toast(msg.message || 'Run plan created!');
+      break;
+
+    case 'run_plan_cleared':
+      toast('Generated run plan cleared.');
+      break;
+
+    case 'run_adaptation_feedback':
+      if (window._runPlanGen) window._runPlanGen.showInsights(msg);
+      break;
+
     case 'strava_status':
       updateStravaUI(msg);
       break;
@@ -156,6 +187,10 @@ function handleMessage(msg) {
 
     case 'strava_imported':
       toast(msg.message || 'New Strava rides imported');
+      break;
+
+    case 'run_imported':
+      toast(msg.message || 'New Strava runs imported');
       break;
 
     case 'error':
@@ -645,6 +680,9 @@ document.addEventListener('DOMContentLoaded', () => {
         window.sendWS({ action: 'get_history' });
         if (window._dashboard) window._dashboard.refresh();
       }
+      if (btn.dataset.tab === 'run') {
+        window.sendWS({ action: 'get_runs' });
+      }
     });
   });
 
@@ -740,6 +778,8 @@ document.addEventListener('DOMContentLoaded', () => {
   window._planner   = new CalendarPlanner();
   window._planGen   = new PlanGenerator();
   window._dashboard = new TrainingDashboard();
+  window._runTab     = new RunTab();
+  window._runPlanGen = new RunPlanGenerator();
 
   // Wire plan generator open button here so it works even if PlanGenerator
   // constructor has a partial failure earlier in the chain.

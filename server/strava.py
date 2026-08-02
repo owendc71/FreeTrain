@@ -100,10 +100,11 @@ def build_tcx(start: datetime, power_samples: list, name: str) -> str:
 # ── Activity import ────────────────────────────────────────────────
 
 _BIKE_TYPES = {"Ride", "VirtualRide", "GravelRide", "MountainBikeRide", "EBikeRide"}
+_RUN_TYPES  = {"Run", "TrailRun", "VirtualRun"}
 
 
 async def list_activities(access_token: str, after_epoch: int) -> list[dict]:
-    """Fetch the athlete's cycling activities created after the given epoch."""
+    """Fetch ALL the athlete's activities created after the given epoch (unfiltered)."""
     async with httpx.AsyncClient(timeout=30) as client:
         r = await client.get(
             f"{_API}/athlete/activities",
@@ -113,9 +114,15 @@ async def list_activities(access_token: str, after_epoch: int) -> list[dict]:
         if r.status_code >= 400:
             log.warning("Strava activity list failed: %s", r.text[:200])
             return []
-        acts = r.json()
-    return [a for a in acts
-            if (a.get("sport_type") or a.get("type")) in _BIKE_TYPES]
+        return r.json()
+
+
+def is_bike(act: dict) -> bool:
+    return (act.get("sport_type") or act.get("type")) in _BIKE_TYPES
+
+
+def is_run(act: dict) -> bool:
+    return (act.get("sport_type") or act.get("type")) in _RUN_TYPES
 
 
 def activity_to_ride(act: dict, ftp: int) -> dict:
@@ -147,6 +154,26 @@ def activity_to_ride(act: dict, ftp: int) -> dict:
         "power_samples":    [],
         "source":           "strava",
         "strava_id":        act.get("id"),
+    }
+
+
+def activity_to_run(act: dict) -> dict:
+    """Convert a Strava activity summary into a FreeTrain run record."""
+    moving     = int(act.get("moving_time") or 0)
+    distance_m = float(act.get("distance") or 0)
+    elev_m     = float(act.get("total_elevation_gain") or 0)
+    pace       = (moving / (distance_m / 1000)) if distance_m > 0 else 0   # sec/km
+
+    return {
+        "name":                act.get("name") or "Strava Run",
+        "date":                str(act.get("start_date_local") or "")[:10],
+        "elapsed":             moving,
+        "distance_m":          distance_m,
+        "elevation_gain_m":    elev_m,
+        "avg_pace_sec_per_km": round(pace, 1),
+        "completed":           True,
+        "source":              "strava",
+        "strava_id":           act.get("id"),
     }
 
 

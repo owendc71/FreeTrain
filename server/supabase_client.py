@@ -221,6 +221,96 @@ async def update_workout_intervals(workout_id: str, intervals: list[dict]):
                           .execute())
 
 
+# ── Runs ───────────────────────────────────────────────────────────
+
+_RUN_COLS = ("id,name,date,elapsed,distance_m,elevation_gain_m,"
+             "avg_pace_sec_per_km,completed,source,strava_id")
+
+
+async def get_runs(user_id: str) -> list[dict]:
+    r = await _run(lambda: db.table("runs")
+                              .select(_RUN_COLS)
+                              .eq("user_id", user_id)
+                              .order("date", desc=True)
+                              .execute())
+    return r.data or []
+
+
+async def save_run(user_id: str, run: dict) -> Optional[dict]:
+    payload = {
+        "user_id":             user_id,
+        "name":                run.get("name", ""),
+        "date":                run.get("date", ""),
+        "elapsed":             run.get("elapsed", 0),
+        "distance_m":          run.get("distance_m", 0),
+        "elevation_gain_m":    run.get("elevation_gain_m", 0),
+        "avg_pace_sec_per_km": run.get("avg_pace_sec_per_km", 0),
+        "completed":           run.get("completed", True),
+        "source":              run.get("source", "strava"),
+    }
+    if run.get("strava_id"):
+        payload["strava_id"] = run["strava_id"]
+    r = await _run(lambda: db.table("runs").insert(payload).execute())
+    return r.data[0] if r.data else None
+
+
+async def delete_run(user_id: str, run_id: str):
+    await _run(lambda: db.table("runs").delete()
+                          .eq("id", run_id).eq("user_id", user_id).execute())
+
+
+# ── Run plan ───────────────────────────────────────────────────────
+
+async def get_run_plan(user_id: str) -> dict:
+    """Returns {date: entry_dict} for every scheduled run day."""
+    r = await _run(lambda: db.table("run_plan_entries")
+                              .select("*")
+                              .eq("user_id", user_id)
+                              .execute())
+    return {row["date"]: row for row in (r.data or [])}
+
+
+async def clear_run_plan(user_id: str):
+    await _run(lambda: db.table("run_plan_entries").delete()
+                          .eq("user_id", user_id).execute())
+
+
+async def save_run_plan(user_id: str, entries: list[tuple[str, dict]]) -> int:
+    """Save a list of (date_iso, entry_dict) pairs. Returns number saved."""
+    for date_str, e in entries:
+        await _run(lambda d=date_str, ent=e: db.table("run_plan_entries").upsert({
+            "user_id":             user_id,
+            "date":                d,
+            "run_type":            ent["run_type"],
+            "target_distance_m":   ent.get("target_distance_m", 0),
+            "target_duration_min": ent.get("target_duration_min", 0),
+            "description":         ent.get("description", ""),
+        }, on_conflict="user_id,date").execute())
+    return len(entries)
+
+
+async def update_run_plan_entry(user_id: str, date_str: str, updates: dict):
+    await _run(lambda: db.table("run_plan_entries")
+                          .update(updates)
+                          .eq("user_id", user_id)
+                          .eq("date", date_str)
+                          .execute())
+
+
+async def set_run_plan_day(user_id: str, date_str: str, entry: Optional[dict]):
+    await _run(lambda: db.table("run_plan_entries").delete()
+                          .eq("user_id", user_id).eq("date", date_str).execute())
+    if entry:
+        await _run(lambda: db.table("run_plan_entries").insert({
+            "user_id":             user_id,
+            "date":                date_str,
+            "run_type":            entry["run_type"],
+            "target_distance_m":   entry.get("target_distance_m", 0),
+            "target_duration_min": entry.get("target_duration_min", 0),
+            "description":         entry.get("description", ""),
+        }).execute())
+
+
 # ── Strava ─────────────────────────────────────────────────────────
 
 async def get_strava_connection(user_id: str) -> Optional[dict]:

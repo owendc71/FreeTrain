@@ -13,14 +13,17 @@ from fastapi.staticfiles import StaticFiles
 import strava
 from ble_manager import BLEManager
 from plan_engine import apply_adaptation, compute_adaptation, generate_plan
+from run_plan_engine import apply_run_adaptation, compute_run_adaptation, generate_run_plan
 from supabase_client import (
     SUPABASE_ANON_KEY, SUPABASE_URL,
-    clear_generated_plan, delete_ride, delete_strava_connection,
-    delete_workout, get_plan, get_rides, get_strava_connection,
+    clear_generated_plan, clear_run_plan, delete_ride, delete_run,
+    delete_strava_connection, delete_workout, get_plan, get_rides,
+    get_run_plan, get_runs, get_strava_connection,
     get_upcoming_generated_workouts, get_workouts,
-    save_generated_plan, save_ride, save_strava_connection, save_workout,
-    set_plan_day, set_ride_strava_id,
-    update_workout_intervals, verify_token,
+    save_generated_plan, save_ride, save_run, save_run_plan,
+    save_strava_connection, save_workout, set_plan_day, set_ride_strava_id,
+    set_run_plan_day, update_run_plan_entry, update_workout_intervals,
+    verify_token,
 )
 from workout_engine import WorkoutEngine
 
@@ -154,12 +157,46 @@ async def _run_adaptation(user_id: str):
         await _broadcast(user_id, {"type": "workouts_updated", "workouts": workouts})
 
 
+async def _run_run_adaptation(user_id: str):
+    """Recompute run adaptation and adjust the next few planned run days."""
+    runs_all  = await get_runs(user_id)
+    run_plan  = await get_run_plan(user_id)
+    factor, status, message = compute_run_adaptation(runs_all, run_plan)
+
+    today = datetime.now(timezone.utc).date().isoformat()
+    upcoming = sorted(
+        (ds, e) for ds, e in run_plan.items()
+        if ds >= today and (e.get("target_distance_m") or 0) > 0
+    )[:3]
+
+    adjusted = 0
+    for ds, entry in upcoming:
+        new = apply_run_adaptation(entry, factor)
+        if new["target_distance_m"] != entry.get("target_distance_m"):
+            await update_run_plan_entry(user_id, ds, {
+                "target_distance_m":   new["target_distance_m"],
+                "target_duration_min": new["target_duration_min"],
+            })
+            adjusted += 1
+
+    if upcoming:
+        await _broadcast(user_id, {
+            "type":    "run_adaptation_feedback",
+            "status":  status,
+            "message": message,
+            "entries_adjusted": adjusted,
+        })
+    if adjusted:
+        run_plan = await get_run_plan(user_id)
+        await _broadcast(user_id, {"type": "run_plan_updated", "run_plan": run_plan})
+
+
 # One sync per user at a time, throttled to every 10 minutes
 _strava_sync_at: dict[str, float] = {}
 
 
 async def _strava_sync_task(user_id: str):
-    """Import new Strava activities as rides, then re-run plan adaptation."""
+    """Import new Strava activities as rides/runs, then re-run plan adaptation."""
     import time
     if time.monotonic() - _strava_sync_at.get(user_id, 0) < 600:
         return
@@ -170,30 +207,45 @@ async def _strava_sync_task(user_id: str):
     _strava_sync_at[user_id] = time.monotonic()
 
     rides_all = await get_rides(user_id)
-    known_ids = {r.get("strava_id") for r in rides_all if r.get("strava_id")}
+    known_ride_ids = {r.get("strava_id") for r in rides_all if r.get("strava_id")}
     ftp = next((r.get("ftp") for r in rides_all if r.get("ftp")), 250)
+
+    runs_all = await get_runs(user_id)
+    known_run_ids = {r.get("strava_id") for r in runs_all if r.get("strava_id")}
 
     after = int((datetime.now(timezone.utc) - timedelta(days=60)).timestamp())
     acts  = await strava.list_activities(token, after)
 
-    imported = 0
+    imported_rides = imported_runs = 0
     for act in acts:
-        if act.get("id") in known_ids:
-            continue
-        ride = strava.activity_to_ride(act, ftp)
-        await save_ride(user_id, ride)
-        imported += 1
+        if strava.is_bike(act) and act.get("id") not in known_ride_ids:
+            await save_ride(user_id, strava.activity_to_ride(act, ftp))
+            imported_rides += 1
+        elif strava.is_run(act) and act.get("id") not in known_run_ids:
+            await save_run(user_id, strava.activity_to_run(act))
+            imported_runs += 1
 
-    if imported:
-        log.info("Strava import: user=%s  activities=%d", user_id, imported)
+    if imported_rides:
+        log.info("Strava import: user=%s  rides=%d", user_id, imported_rides)
         rides = await get_rides(user_id)
         await _broadcast(user_id, {"type": "history_updated", "rides": rides})
         await _broadcast(user_id, {
             "type":    "strava_imported",
-            "count":   imported,
-            "message": f"Imported {imported} ride{'s' if imported != 1 else ''} from Strava",
+            "count":   imported_rides,
+            "message": f"Imported {imported_rides} ride{'s' if imported_rides != 1 else ''} from Strava",
         })
         await _run_adaptation(user_id)
+
+    if imported_runs:
+        log.info("Strava import: user=%s  runs=%d", user_id, imported_runs)
+        runs = await get_runs(user_id)
+        await _broadcast(user_id, {"type": "runs_updated", "runs": runs})
+        await _broadcast(user_id, {
+            "type":    "run_imported",
+            "count":   imported_runs,
+            "message": f"Imported {imported_runs} run{'s' if imported_runs != 1 else ''} from Strava",
+        })
+        await _run_run_adaptation(user_id)
 
 
 async def _broadcast_strava_status(user_id: str):
@@ -261,10 +313,12 @@ async def ws_endpoint(ws: WebSocket, token: str = Query(default=None)):
     _sockets.setdefault(user_id, set()).add(ws)
     log.info("WS connected: user=%s", user_id)
 
-    workouts, rides, plan = await asyncio.gather(
+    workouts, rides, plan, runs, run_plan = await asyncio.gather(
         get_workouts(user_id),
         get_rides(user_id),
         get_plan(user_id),
+        get_runs(user_id),
+        get_run_plan(user_id),
     )
 
     import json
@@ -273,6 +327,8 @@ async def ws_endpoint(ws: WebSocket, token: str = Query(default=None)):
         "workouts": workouts,
         "rides":    rides,
         "plan":     plan,
+        "runs":     runs,
+        "run_plan": run_plan,
         **ble.get_status(),
     }))
 
@@ -418,6 +474,64 @@ async def _handle(user_id: str, msg: dict):
         await _broadcast(user_id, {"type": "workouts_updated", "workouts": workouts})
         await _broadcast(user_id, {"type": "plan_updated", "plan": plan})
         await _broadcast(user_id, {"type": "plan_cleared"})
+
+    # ── Run history ──
+    elif action == "get_runs":
+        runs = await get_runs(user_id)
+        await _broadcast(user_id, {"type": "runs_updated", "runs": runs})
+
+    elif action == "delete_run":
+        await delete_run(user_id, msg["run_id"])
+        runs = await get_runs(user_id)
+        await _broadcast(user_id, {"type": "runs_updated", "runs": runs})
+
+    # ── Run plan (manual single-day edit) ──
+    elif action == "run_plan_day":
+        date_str = msg.get("date", "")
+        entry    = msg.get("entry") or None
+        if date_str:
+            await set_run_plan_day(user_id, date_str, entry)
+            run_plan = await get_run_plan(user_id)
+            await _broadcast(user_id, {"type": "run_plan_updated", "run_plan": run_plan})
+
+    elif action == "get_run_plan":
+        run_plan = await get_run_plan(user_id)
+        await _broadcast(user_id, {"type": "run_plan_updated", "run_plan": run_plan})
+
+    # ── Adaptive run plan generation ──
+    elif action == "generate_run_plan":
+        profile  = msg.get("profile", {})
+        runs_all = await get_runs(user_id)
+        paces    = [r["avg_pace_sec_per_km"] for r in runs_all if r.get("avg_pace_sec_per_km")]
+        avg_pace = sum(paces) / len(paces) if paces else 375.0
+
+        weekly_target_m = float(profile.get("weekly_miles", 15)) * 1609.34
+        sessions = generate_run_plan(
+            goal                = profile.get("goal", "base_mileage"),
+            level               = profile.get("level", "intermediate"),
+            days_per_week       = int(profile.get("days_per_week", 4)),
+            weekly_target_m     = weekly_target_m,
+            avg_pace_sec_per_km = avg_pace,
+        )
+        await clear_run_plan(user_id)
+        n = await save_run_plan(user_id, sessions)
+        log.info("Run plan generated: user=%s  sessions=%d  goal=%s", user_id, n, profile.get("goal"))
+
+        run_plan = await get_run_plan(user_id)
+        await _broadcast(user_id, {
+            "type":             "run_plan_generated",
+            "sessions_created": n,
+            "weeks":            6,
+            "goal":             profile.get("goal", "base_mileage"),
+            "message":          f"Your 6-week run plan is ready — {n} runs scheduled.",
+        })
+        await _broadcast(user_id, {"type": "run_plan_updated", "run_plan": run_plan})
+
+    elif action == "clear_run_plan":
+        await clear_run_plan(user_id)
+        run_plan = await get_run_plan(user_id)
+        await _broadcast(user_id, {"type": "run_plan_updated", "run_plan": run_plan})
+        await _broadcast(user_id, {"type": "run_plan_cleared"})
 
     # ── Strava ──
     elif action == "strava_status":

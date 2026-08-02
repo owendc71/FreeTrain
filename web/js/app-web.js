@@ -22,19 +22,30 @@ const state = {
   heartRate:        null,
 };
 
-let _sb     = null;
-let _userId = null;
-let _ble    = null;
-let _engine = null;
-let _strava = null;
-let _rides  = [];
-let _plan   = {};
+let _sb      = null;
+let _userId  = null;
+let _ble     = null;
+let _engine  = null;
+let _strava  = null;
+let _rides   = [];
+let _plan    = {};
+let _runs    = [];
+let _runPlan = {};
 
 // sendWS is the universal message bus — routes to _handleAction in web mode
 window.sendWS = msg => _handleAction(msg);
 
 function _syncDashboard() {
-  if (window._dashboard) window._dashboard.update({ rides: _rides, plan: _plan });
+  if (window._dashboard) window._dashboard.update({
+    rides: _rides, plan: _plan, runs: _runs, runPlan: _runPlan,
+  });
+}
+
+// Pushes run data into the calendar planner and the Run tab. Called
+// whenever _runs or _runPlan change.
+function _syncRunViews() {
+  if (window._planner) window._planner.update({ runPlan: _runPlan, runs: _runs });
+  if (window._runTab)  window._runTab.update({ runs: _runs });
 }
 
 // ── Startup ───────────────────────────────────────────────────────
@@ -76,33 +87,46 @@ window.startApp = async function(token) {
   if (_strava.isConnected()) _stravaSync();
 };
 
-// ── Strava activity import ────────────────────────────────────────
+// ── Strava activity import (both rides and runs) ──────────────────
 async function _stravaSync() {
   try {
     const after = Math.floor(Date.now() / 1000) - 60 * 86400;   // last 60 days
     const acts  = await _strava.listActivities(after);
     if (!acts.length) return;
 
-    const knownIds = new Set(_rides.filter(r => r.strava_id).map(r => r.strava_id));
-    const ftp      = _rides.find(r => r.ftp)?.ftp || state.ftp || 250;
+    const knownRideIds = new Set(_rides.filter(r => r.strava_id).map(r => r.strava_id));
+    const knownRunIds  = new Set(_runs.filter(r => r.strava_id).map(r => r.strava_id));
+    const ftp = _rides.find(r => r.ftp)?.ftp || state.ftp || 250;
 
-    let imported = 0;
+    let importedRides = 0, importedRuns = 0;
     for (const act of acts) {
-      if (knownIds.has(act.id)) continue;
-      const ride = StravaManager.activityToRide(act, ftp);
-      const { data } = await _sb.from('rides')
-        .insert({ user_id: _userId, ...ride }).select().single();
-      if (data) { _rides.push(data); imported++; }
+      if (StravaManager.isBike(act) && !knownRideIds.has(act.id)) {
+        const ride = StravaManager.activityToRide(act, ftp);
+        const { data } = await _sb.from('rides').insert({ user_id: _userId, ...ride }).select().single();
+        if (data) { _rides.push(data); importedRides++; }
+      } else if (StravaManager.isRun(act) && !knownRunIds.has(act.id)) {
+        const run = StravaManager.activityToRun(act);
+        const { data } = await _sb.from('runs').insert({ user_id: _userId, ...run }).select().single();
+        if (data) { _runs.push(data); importedRuns++; }
+      }
     }
-    if (!imported) return;
 
-    _rides.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-    renderHistory(_rides);
-    if (window._planner) window._planner.update({ rides: _rides });
-    _syncDashboard();
-    toast(`Imported ${imported} ride${imported === 1 ? '' : 's'} from Strava`);
+    if (importedRides) {
+      _rides.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+      renderHistory(_rides);
+      if (window._planner) window._planner.update({ rides: _rides });
+      _syncDashboard();
+      toast(`Imported ${importedRides} ride${importedRides === 1 ? '' : 's'} from Strava`);
+      await _runAdaptation();
+    }
 
-    await _runAdaptation();
+    if (importedRuns) {
+      _runs.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+      _syncRunViews();
+      _syncDashboard();
+      toast(`Imported ${importedRuns} run${importedRuns === 1 ? '' : 's'} from Strava`);
+      await _runRunAdaptation();
+    }
   } catch (e) {
     console.error('Strava sync:', e);
   }
@@ -133,16 +157,45 @@ async function _runAdaptation() {
   if (adjusted && state.selected) previewWorkout(state.selected.id);
 }
 
+// ── Adaptive run plan: recompute and adjust the next planned run days ──
+async function _runRunAdaptation() {
+  const result = RunPlanWebEngine.computeRunAdaptation(_runs, _runPlan);
+  if (window._runPlanGen) window._runPlanGen.showInsights(result);
+  if (Math.abs(result.factor) < 0.005) return;
+
+  const today   = new Date().toISOString().slice(0, 10);
+  const entries = Object.entries(_runPlan)
+    .filter(([d, e]) => d >= today && (e.target_distance_m || 0) > 0)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .slice(0, 3);
+
+  let adjusted = 0;
+  for (const [dateStr, entry] of entries) {
+    const adapted = RunPlanWebEngine.applyRunAdaptation(entry, result.factor);
+    if (adapted.target_distance_m === entry.target_distance_m) continue;
+    await _sb.from('run_plan_entries').update({
+      target_distance_m:   adapted.target_distance_m,
+      target_duration_min: adapted.target_duration_min,
+    }).eq('user_id', _userId).eq('date', dateStr);
+    _runPlan[dateStr] = { ..._runPlan[dateStr], ...adapted };
+    adjusted++;
+  }
+  if (adjusted) _syncRunViews();
+}
+
 async function _loadInitialData() {
-  const [workouts, rides, plan] = await Promise.all([
-    _fetchWorkouts(), _fetchRides(), _fetchPlan(),
+  const [workouts, rides, plan, runs, runPlan] = await Promise.all([
+    _fetchWorkouts(), _fetchRides(), _fetchPlan(), _fetchRuns(), _fetchRunPlan(),
   ]);
-  _rides = rides;
-  _plan  = plan;
+  _rides   = rides;
+  _plan    = plan;
+  _runs    = runs;
+  _runPlan = runPlan;
 
   updateWorkoutList(workouts);
   renderHistory(rides);
-  if (window._planner) window._planner.update({ plan, workouts, rides });
+  if (window._planner) window._planner.update({ plan, workouts, rides, runPlan, runs });
+  if (window._runTab)  window._runTab.update({ runs });
   _syncDashboard();
 
   // Show today's plan banner on ride tab
@@ -185,6 +238,19 @@ async function _fetchPlan() {
   return out;
 }
 
+async function _fetchRuns() {
+  const { data } = await _sb.from('runs').select('*')
+    .eq('user_id', _userId).order('date', { ascending: false });
+  return data || [];
+}
+
+async function _fetchRunPlan() {
+  const { data } = await _sb.from('run_plan_entries').select('*').eq('user_id', _userId);
+  const out = {};
+  (data || []).forEach(e => { out[e.date] = e; });
+  return out;
+}
+
 // ── Action router (replaces WebSocket message types) ─────────────
 async function _handleAction(msg) {
   switch (msg.action) {
@@ -220,6 +286,19 @@ async function _handleAction(msg) {
       _rides = _rides.filter(r => r.id !== msg.ride_id);
       renderHistory(_rides);
       if (window._planner) window._planner.update({ rides: _rides });
+      _syncDashboard();
+      break;
+    }
+
+    // ── Run history ──────────────────────────────────────────────
+    case 'get_runs':
+      if (window._runTab) window._runTab.update({ runs: _runs });
+      break;
+
+    case 'delete_run': {
+      await _sb.from('runs').delete().eq('id', msg.run_id).eq('user_id', _userId);
+      _runs = _runs.filter(r => r.id !== msg.run_id);
+      _syncRunViews();
       _syncDashboard();
       break;
     }
@@ -280,6 +359,15 @@ async function _handleAction(msg) {
 
     case 'clear_plan':
       await _clearGeneratedPlan();
+      break;
+
+    // ── Generated run plan ──────────────────────────────────────────
+    case 'generate_run_plan':
+      await _generateRunPlan(msg.profile);
+      break;
+
+    case 'clear_run_plan':
+      await _clearGeneratedRunPlan();
       break;
   }
 }
@@ -481,6 +569,50 @@ async function _clearGeneratedPlan(silent = false) {
     if (window._planner) window._planner.update({ plan: _plan, workouts });
     _syncDashboard();
     toast('Generated plan cleared.');
+  }
+}
+
+// ── Run plan generation ────────────────────────────────────────────
+async function _generateRunPlan(profile) {
+  const paces = _runs.map(r => r.avg_pace_sec_per_km).filter(Boolean);
+  const avgPace = paces.length ? paces.reduce((a, b) => a + b, 0) / paces.length : 375.0;
+
+  const sessions = RunPlanWebEngine.generateRunPlan({
+    goal:            profile.goal,
+    level:           profile.level,
+    daysPerWeek:     profile.days_per_week,
+    weeklyTargetM:   (profile.weekly_miles || 15) * 1609.34,
+    avgPaceSecPerKm: avgPace,
+  });
+
+  await _clearGeneratedRunPlan(true);
+
+  let count = 0;
+  for (const { date, entry } of sessions) {
+    await _sb.from('run_plan_entries').upsert({
+      user_id:              _userId,
+      date,
+      run_type:             entry.run_type,
+      target_distance_m:    entry.target_distance_m,
+      target_duration_min:  entry.target_duration_min,
+      description:          entry.description,
+    }, { onConflict: 'user_id,date' });
+    count++;
+  }
+
+  _runPlan = await _fetchRunPlan();
+  _syncRunViews();
+  const overlay = document.getElementById('rpg-overlay');
+  if (overlay) { overlay.style.display = 'none'; document.body.style.overflow = ''; }
+  toast(`6-week run plan created — ${count} runs scheduled.`);
+}
+
+async function _clearGeneratedRunPlan(silent = false) {
+  await _sb.from('run_plan_entries').delete().eq('user_id', _userId);
+  if (!silent) {
+    _runPlan = await _fetchRunPlan();
+    _syncRunViews();
+    toast('Generated run plan cleared.');
   }
 }
 
@@ -732,6 +864,9 @@ document.addEventListener('DOMContentLoaded', () => {
         renderHistory(_rides);
         if (window._dashboard) window._dashboard.refresh();
       }
+      if (btn.dataset.tab === 'run' && window._runTab) {
+        window._runTab.update({ runs: _runs });
+      }
     });
   });
 
@@ -801,10 +936,12 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Init creator, planner, plan generator
-  window._creator   = new WorkoutCreator();
-  window._planner   = new CalendarPlanner();
-  window._planGen   = new PlanGenerator();
-  window._dashboard = new TrainingDashboard();
+  window._creator    = new WorkoutCreator();
+  window._planner    = new CalendarPlanner();
+  window._planGen    = new PlanGenerator();
+  window._dashboard  = new TrainingDashboard();
+  window._runTab     = new RunTab();
+  window._runPlanGen = new RunPlanGenerator();
 
   window._pgClose = () => {
     const o = document.getElementById('pg-overlay');

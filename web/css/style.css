@@ -31,6 +31,12 @@
   --danger:    #dc2626;
   --danger-bg: rgba(220,38,38,0.08);
 
+  /* Running accent — teal, distinct from cycling green at a glance */
+  --run:      #0f766e;
+  --run-dim:  #115e59;
+  --run-bg:   rgba(15,118,110,0.09);
+  --run-glow: rgba(15,118,110,0.18);
+
   /* Zone colours — semantic training zones */
   --z1: #64748b;
   --z2: #2563eb;
@@ -202,6 +208,15 @@ main { padding: 0; }
 .btn-start:hover:not(:disabled) {
   background: var(--blue-dim);
   box-shadow: 0 2px 6px rgba(0,0,0,.18), 0 0 20px rgba(22,163,74,.28);
+}
+
+.btn-run, .run-plan-btn {
+  background: var(--run) !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,.15), 0 0 14px rgba(15,118,110,.20) !important;
+}
+.btn-run:hover:not(:disabled), .run-plan-btn:hover:not(:disabled) {
+  background: var(--run-dim) !important;
+  box-shadow: 0 2px 6px rgba(0,0,0,.18), 0 0 20px rgba(15,118,110,.28) !important;
 }
 
 .btn-pause {
@@ -792,11 +807,13 @@ input::placeholder { color: var(--text-3); }
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--gb);
+  border-left: 3px solid var(--blue);
   border-radius: var(--r);
   padding: 18px 8px;
   margin-bottom: 16px;
   box-shadow: var(--shadow);
 }
+.history-summary.run-summary { border-left-color: var(--run); }
 .hs-stat {
   flex: 1;
   text-align: center;
@@ -935,8 +952,10 @@ input::placeholder { color: var(--text-3); }
   font-size: 14px;
   font-weight: 700;
   color: var(--text);
-  margin: 4px 0 12px;
+  margin: 32px 0 12px;
 }
+.dash-section-title-first { margin-top: 4px; }
+.dash-charts-grid-2 { grid-template-columns: 1fr 1fr; }
 
 .history-empty {
   text-align: center;
@@ -1103,10 +1122,12 @@ input::placeholder { color: var(--text-3); }
   text-overflow: ellipsis;
   line-height: 1.45;
 }
+.cal-chip-run { background: var(--run); margin-top: 2px; }
 
 .cal-dots { display: flex; gap: 3px; flex-wrap: wrap; margin-top: auto; padding-top: 3px; }
 .cal-dot  { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
 .cal-dot.done    { background: var(--blue); }
+.cal-dot.run     { background: var(--run); }
 .cal-dot.partial { background: var(--amber); }
 .cal-dot.strava  { background: #fc4c02; }
 

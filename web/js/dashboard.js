@@ -29,27 +29,40 @@ class TrainingDashboard {
   static STATUS_FAIR   = '#d97706';
   static STATUS_LOW    = '#dc2626';
 
+  // Running gets its own brand accent (teal) so it reads as a distinct
+  // discipline from cycling (green) at a glance. Contrast-checked ≥3:1 on white.
+  static RUN_COLOR = '#0f766e';
+  static RUN_HOVER = '#115e59';
+
+  static M_PER_MILE = 1609.34;
+
   constructor() {
-    this._loadCanvas = document.getElementById('dash-load-canvas');
-    this._adhCanvas  = document.getElementById('dash-adherence-canvas');
-    this._zoneBar    = document.getElementById('dash-zone-bar');
-    this._zoneLegend = document.getElementById('dash-zone-legend');
+    this._loadCanvas    = document.getElementById('dash-load-canvas');
+    this._adhCanvas     = document.getElementById('dash-adherence-canvas');
+    this._zoneBar       = document.getElementById('dash-zone-bar');
+    this._zoneLegend    = document.getElementById('dash-zone-legend');
+    this._runLoadCanvas = document.getElementById('dash-run-load-canvas');
+    this._runAdhCanvas  = document.getElementById('dash-run-adherence-canvas');
 
-    this._rides = [];
-    this._plan  = {};
+    this._rides   = [];
+    this._plan    = {};
+    this._runs    = [];
+    this._runPlan = {};
 
-    if (this._loadCanvas) this._setupCanvas(this._loadCanvas, () => this._drawLoad());
-    if (this._adhCanvas)  this._setupCanvas(this._adhCanvas,  () => this._drawAdherence());
+    if (this._loadCanvas)    this._setupCanvas(this._loadCanvas,    () => this._drawLoad());
+    if (this._adhCanvas)     this._setupCanvas(this._adhCanvas,     () => this._drawAdherence());
+    if (this._runLoadCanvas) this._setupCanvas(this._runLoadCanvas, () => this._drawRunLoad());
+    if (this._runAdhCanvas)  this._setupCanvas(this._runAdhCanvas,  () => this._drawRunAdherence());
   }
 
   // ── Public ─────────────────────────────────────────────────────────
 
-  update({ rides, plan } = {}) {
-    if (rides != null) this._rides = rides;
-    if (plan  != null) this._plan  = plan;
-    this._drawLoad();
-    this._drawAdherence();
-    this._drawZones();
+  update({ rides, plan, runs, runPlan } = {}) {
+    if (rides   != null) this._rides   = rides;
+    if (plan    != null) this._plan    = plan;
+    if (runs    != null) this._runs    = runs;
+    if (runPlan != null) this._runPlan = runPlan;
+    this.refresh();
   }
 
   // Call when the Dashboard tab becomes visible (canvases may have been
@@ -59,6 +72,27 @@ class TrainingDashboard {
     this._drawLoad();
     this._drawAdherence();
     this._drawZones();
+    this._drawRunLoad();
+    this._drawRunAdherence();
+    this._renderRunSummary();
+  }
+
+  _renderRunSummary() {
+    const el = document.getElementById('run-hs-summary');
+    if (!el) return;
+    if (!this._runs.length) { el.style.display = 'none'; return; }
+
+    const totalDist = this._runs.reduce((s, r) => s + (r.distance_m || 0), 0);
+    const totalElev = this._runs.reduce((s, r) => s + (r.elevation_gain_m || 0), 0);
+    const totalSec  = this._runs.reduce((s, r) => s + (r.elapsed || 0), 0);
+    const hrs = Math.floor(totalSec / 3600);
+    const mins = Math.round((totalSec % 3600) / 60);
+
+    document.getElementById('run-hs-runs').textContent  = this._runs.length;
+    document.getElementById('run-hs-miles').textContent = (totalDist / TrainingDashboard.M_PER_MILE).toFixed(0);
+    document.getElementById('run-hs-vert').textContent  = Math.round(totalElev * 3.28084).toLocaleString();
+    document.getElementById('run-hs-time').textContent  = hrs ? `${hrs}h ${mins}m` : `${mins}m`;
+    el.style.display = 'flex';
   }
 
   // ── Date helpers ───────────────────────────────────────────────────
@@ -157,6 +191,62 @@ class TrainingDashboard {
     return { buckets, totalHours };
   }
 
+  _weeklyRunBuckets(numWeeks) {
+    const curStart = this._weekStart(new Date());
+    const weeks = [];
+    for (let i = numWeeks - 1; i >= 0; i--) {
+      const start = new Date(curStart);
+      start.setDate(start.getDate() - i * 7);
+      weeks.push({ start, distanceM: 0, elevM: 0, runs: 0 });
+    }
+    this._runs.forEach(r => {
+      const d = this._parseDate(r.date);
+      if (!d) return;
+      const ws = this._weekStart(d).getTime();
+      const bucket = weeks.find(w => w.start.getTime() === ws);
+      if (bucket) {
+        bucket.distanceM += r.distance_m || 0;
+        bucket.elevM     += r.elevation_gain_m || 0;
+        bucket.runs      += 1;
+      }
+    });
+    return weeks;
+  }
+
+  _runAdherenceBuckets(numWeeks) {
+    const todayIso = this._isoLocal(new Date());
+    const completedByDate = {};
+    this._runs.forEach(r => {
+      const ds = String(r.date || '').slice(0, 10);
+      if (!ds) return;
+      completedByDate[ds] = (completedByDate[ds] || 0) + (r.distance_m || 0);
+    });
+
+    const curStart = this._weekStart(new Date());
+    const weeks = [];
+    for (let i = numWeeks - 1; i >= 0; i--) {
+      const start = new Date(curStart);
+      start.setDate(start.getDate() - i * 7);
+      weeks.push({ start, planned: 0, hit: 0 });
+    }
+
+    Object.entries(this._runPlan).forEach(([dateStr, entry]) => {
+      const target = entry && entry.target_distance_m;
+      if (!target || dateStr > todayIso) return;
+      const d = this._parseDate(dateStr);
+      if (!d) return;
+      const ws = this._weekStart(d).getTime();
+      const bucket = weeks.find(w => w.start.getTime() === ws);
+      if (!bucket) return;
+      bucket.planned += 1;
+      if ((completedByDate[dateStr] || 0) >= target * 0.85) bucket.hit += 1;
+    });
+
+    return weeks
+      .filter(w => w.planned > 0)
+      .map(w => ({ ...w, pct: Math.round((w.hit / w.planned) * 100) }));
+  }
+
   // ── Weekly Training Load chart ────────────────────────────────────
 
   _drawLoad() {
@@ -224,6 +314,83 @@ class TrainingDashboard {
         color,
         hoverColor: color,
         tooltip: `${w.pct}% adherence · ${w.completed}/${w.planned} planned rides`,
+        directLabel: i === weeks.length - 1,
+        valueSuffix: '%',
+      };
+    });
+
+    this._drawBars(canvas, items, { maxOverride: 100 });
+  }
+
+  // ── Weekly Mileage chart (running) ─────────────────────────────────
+
+  _drawRunLoad() {
+    const canvas = this._runLoadCanvas;
+    const empty  = document.getElementById('dash-run-load-empty');
+    const sub    = document.getElementById('dash-run-load-sub');
+    if (!canvas) return;
+
+    const weeks = this._weeklyRunBuckets(10);
+    const hasData = weeks.some(w => w.distanceM > 0);
+
+    canvas.style.display = hasData ? 'block' : 'none';
+    if (empty) empty.style.display = hasData ? 'none' : 'flex';
+    if (!hasData) { if (sub) sub.textContent = ''; return; }
+
+    const cur  = weeks[weeks.length - 1];
+    const prev = weeks[weeks.length - 2];
+    const curMi = cur.distanceM / TrainingDashboard.M_PER_MILE;
+    if (sub) {
+      if (prev && prev.distanceM > 0) {
+        const delta = Math.round(((cur.distanceM - prev.distanceM) / prev.distanceM) * 100);
+        const arrow = delta >= 0 ? '↑' : '↓';
+        sub.textContent = `${curMi.toFixed(1)} mi this week · ${arrow} ${Math.abs(delta)}% vs last week`;
+      } else {
+        sub.textContent = `${curMi.toFixed(1)} mi this week`;
+      }
+    }
+
+    const items = weeks.map((w, i) => ({
+      label: this._weekLabel(w.start),
+      value: Math.round((w.distanceM / TrainingDashboard.M_PER_MILE) * 10) / 10,
+      color: TrainingDashboard.RUN_COLOR,
+      hoverColor: TrainingDashboard.RUN_HOVER,
+      tooltip: `${(w.distanceM / TrainingDashboard.M_PER_MILE).toFixed(1)} mi · ${Math.round(w.elevM * 3.28084)} ft vert`,
+      directLabel: i === weeks.length - 1,
+      valueSuffix: 'mi',
+    }));
+
+    this._drawBars(canvas, items);
+  }
+
+  // ── Run Plan Adherence chart ───────────────────────────────────────
+
+  _drawRunAdherence() {
+    const canvas = this._runAdhCanvas;
+    const empty  = document.getElementById('dash-run-adherence-empty');
+    const sub    = document.getElementById('dash-run-adherence-sub');
+    if (!canvas) return;
+
+    const weeks = this._runAdherenceBuckets(10);
+    const hasData = weeks.length > 0;
+
+    canvas.style.display = hasData ? 'block' : 'none';
+    if (empty) empty.style.display = hasData ? 'none' : 'flex';
+    if (!hasData) { if (sub) sub.textContent = ''; return; }
+
+    const avg = Math.round(weeks.reduce((s, w) => s + w.pct, 0) / weeks.length);
+    if (sub) sub.textContent = `${avg}% average, last ${weeks.length} planned week${weeks.length === 1 ? '' : 's'}`;
+
+    const items = weeks.map((w, i) => {
+      const color = w.pct >= 85 ? TrainingDashboard.STATUS_GOOD
+                  : w.pct >= 60 ? TrainingDashboard.STATUS_FAIR
+                  :                TrainingDashboard.STATUS_LOW;
+      return {
+        label: this._weekLabel(w.start),
+        value: w.pct,
+        color,
+        hoverColor: color,
+        tooltip: `${w.pct}% adherence · ${w.hit}/${w.planned} planned runs hit`,
         directLabel: i === weeks.length - 1,
         valueSuffix: '%',
       };

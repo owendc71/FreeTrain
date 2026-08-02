@@ -17,6 +17,7 @@
 
   <nav class="tab-nav">
     <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+    <button class="tab-btn"        data-tab="run">Run</button>
     <button class="tab-btn"        data-tab="ride">Ride</button>
     <button class="tab-btn"        data-tab="create">Create</button>
     <button class="tab-btn"        data-tab="plan">Plan</button>
@@ -44,6 +45,8 @@
       <h2>Dashboard</h2>
       <span class="history-count" id="history-count"></span>
     </div>
+
+    <h3 class="dash-section-title dash-section-title-first">🚴 Cycling</h3>
 
     <!-- Career totals -->
     <div class="history-summary" id="history-summary" style="display:none">
@@ -113,14 +116,122 @@
 
     </div>
 
+    <h3 class="dash-section-title">🏃 Running</h3>
+
+    <!-- Running career totals -->
+    <div class="history-summary run-summary" id="run-hs-summary" style="display:none">
+      <div class="hs-stat">
+        <span class="hs-value" id="run-hs-runs">0</span>
+        <span class="hs-label">Runs</span>
+      </div>
+      <div class="hs-stat">
+        <span class="hs-value" id="run-hs-miles">0</span>
+        <span class="hs-label">Total Miles</span>
+      </div>
+      <div class="hs-stat">
+        <span class="hs-value" id="run-hs-vert">0</span>
+        <span class="hs-label">Total Vert (ft)</span>
+      </div>
+      <div class="hs-stat">
+        <span class="hs-value" id="run-hs-time">0h</span>
+        <span class="hs-label">Total Time</span>
+      </div>
+    </div>
+
+    <div class="dash-charts-grid dash-charts-grid-2">
+
+      <div class="dash-card">
+        <div class="dash-card-head">
+          <h3>Weekly Mileage</h3>
+          <span class="dash-card-sub" id="dash-run-load-sub"></span>
+        </div>
+        <div class="dash-chart-wrap">
+          <canvas id="dash-run-load-canvas"></canvas>
+          <div class="dash-chart-empty" id="dash-run-load-empty" style="display:none">
+            Connect Strava and log a run to see your weekly mileage here.
+          </div>
+        </div>
+      </div>
+
+      <div class="dash-card">
+        <div class="dash-card-head">
+          <h3>Run Plan Adherence</h3>
+          <span class="dash-card-sub" id="dash-run-adherence-sub"></span>
+        </div>
+        <div class="dash-chart-wrap">
+          <canvas id="dash-run-adherence-canvas"></canvas>
+          <div class="dash-chart-empty" id="dash-run-adherence-empty" style="display:none">
+            Create a run plan to track adherence here.
+          </div>
+        </div>
+        <div class="dash-legend">
+          <span class="dash-legend-item"><span class="dash-legend-dot" style="background:#16a34a"></span>Good ≥85%</span>
+          <span class="dash-legend-item"><span class="dash-legend-dot" style="background:#d97706"></span>Fair 60–84%</span>
+          <span class="dash-legend-item"><span class="dash-legend-dot" style="background:#dc2626"></span>Low &lt;60%</span>
+        </div>
+      </div>
+
+    </div>
+
     <!-- Recent activity -->
-    <h3 class="dash-section-title">Recent Activity</h3>
+    <h3 class="dash-section-title">Recent Rides</h3>
 
     <div class="history-empty" id="history-empty" style="display:none">
       <p>No rides yet. Complete a workout and it will appear here.</p>
     </div>
 
     <div class="history-list" id="history-list"></div>
+
+  </section>
+
+  <!-- ═══════════════════════════ RUN TAB ═══════════════════════════ -->
+  <section id="tab-run" class="tab-content">
+
+    <div class="history-header">
+      <h2>Runs</h2>
+      <span class="history-count" id="run-count"></span>
+      <button class="btn btn-start btn-sm run-plan-btn" id="open-run-plan-generator" style="margin-left:auto"
+        onclick="document.getElementById('rpg-overlay').style.display='flex';document.body.style.overflow='hidden'">+ Create Run Plan</button>
+    </div>
+
+    <!-- Career totals -->
+    <div class="history-summary" id="run-summary" style="display:none">
+      <div class="hs-stat">
+        <span class="hs-value" id="rs-runs">0</span>
+        <span class="hs-label">Runs</span>
+      </div>
+      <div class="hs-stat">
+        <span class="hs-value" id="rs-miles">0</span>
+        <span class="hs-label">Total Miles</span>
+      </div>
+      <div class="hs-stat">
+        <span class="hs-value" id="rs-vert">0</span>
+        <span class="hs-label">Total Vert (ft)</span>
+      </div>
+      <div class="hs-stat">
+        <span class="hs-value" id="rs-time">0h</span>
+        <span class="hs-label">Total Time</span>
+      </div>
+    </div>
+
+    <!-- Adaptive run-plan insights banner -->
+    <div class="pg-insights-banner" id="rpg-insights-banner" style="display:none">
+      <span class="pg-insights-dot" id="run-insights-dot"></span>
+      <strong id="run-insights-status-label"></strong>
+      <span id="run-insights-message"></span>
+    </div>
+
+    <div class="scan-hint" id="run-strava-hint" style="margin-top:14px">
+      Runs are imported automatically from Strava — connect your account on the
+      <a href="#" onclick="document.querySelector('[data-tab=&quot;devices&quot;]').click();return false;" style="color:var(--blue)">Devices tab</a>
+      to start tracking mileage, elevation, and pace here.
+    </div>
+
+    <div class="history-empty" id="run-empty" style="display:none">
+      <p>No runs yet. Connect Strava and log a run — it'll show up here automatically.</p>
+    </div>
+
+    <div class="history-list" id="run-list" style="margin-top:14px"></div>
 
   </section>
 
@@ -494,6 +605,78 @@
   </div>
 </div>
 
+<!-- ══════════════════════ RUN PLAN GENERATOR MODAL ═══════════════ -->
+<div class="pg-overlay" id="rpg-overlay" style="display:none"
+  onclick="if(event.target===this){this.style.display='none';document.body.style.overflow='';}">
+  <div class="pg-card">
+
+    <div class="pg-card-header">
+      <span class="pg-card-title">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--run)"><path d="M13 4l3 3-3 9-6 6"/><circle cx="17" cy="5" r="2"/><path d="M9 15l-3 3H2"/><path d="M13 10l-4-1-3 3"/></svg>
+        Create Run Plan
+      </span>
+      <button class="pg-close" id="rpg-close" aria-label="Close"
+        onclick="document.getElementById('rpg-overlay').style.display='none';document.body.style.overflow=''">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+
+    <div class="pg-card-body">
+
+      <div class="form-group">
+        <label>Training Goal</label>
+        <select id="rpg-goal">
+          <option value="base_mileage">Base Mileage – Build your aerobic foundation</option>
+          <option value="five_k">5K – Speed and turnover</option>
+          <option value="ten_k">10K – Threshold and endurance</option>
+          <option value="half_marathon">Half Marathon – Volume with race-pace work</option>
+          <option value="marathon">Marathon – Full periodisation, long-run focus</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Experience Level</label>
+        <div class="pg-pills" id="rpg-level">
+          <button class="pg-pill" data-val="beginner">Beginner</button>
+          <button class="pg-pill active" data-val="intermediate">Intermediate</button>
+          <button class="pg-pill" data-val="advanced">Advanced</button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Days per Week</label>
+        <div class="pg-pills" id="rpg-days">
+          <button class="pg-pill" data-val="3">3</button>
+          <button class="pg-pill active" data-val="4">4</button>
+          <button class="pg-pill" data-val="5">5</button>
+          <button class="pg-pill" data-val="6">6</button>
+        </div>
+      </div>
+
+      <div class="form-group row">
+        <label>Weekly Mileage</label>
+        <input type="number" id="rpg-miles" value="15" min="5" max="100" step="1" style="width:80px">
+        <span class="unit">mi</span>
+        <span class="hint" style="margin-left:6px">your target weekly total</span>
+      </div>
+
+      <div class="form-group">
+        <label>Training Background <span class="hint">(optional)</span></label>
+        <textarea id="rpg-notes" rows="2" placeholder="e.g. Currently running ~10mi/week. Building toward a fall half marathon."></textarea>
+      </div>
+
+    </div>
+
+    <div class="pg-card-footer">
+      <button class="btn btn-run" id="rpg-generate-btn">Generate 6-Week Plan</button>
+      <button class="btn btn-adj"   id="rpg-cancel-btn"
+        onclick="document.getElementById('rpg-overlay').style.display='none';document.body.style.overflow=''">Cancel</button>
+      <button class="btn btn-adj pg-clear-btn" id="rpg-clear-btn" style="margin-left:auto">Clear Plan</button>
+    </div>
+
+  </div>
+</div>
+
 <!-- ══════════════════════ AUTH OVERLAY ══════════════════════════ -->
 <div id="auth-overlay" class="auth-overlay" style="display:none">
   <div class="auth-card">
@@ -548,6 +731,7 @@
 <script src="/js/chart.js"></script>
 <script src="/js/creator.js"></script>
 <script src="/js/planner.js"></script>
+<script src="/js/run.js"></script>
 <script src="/js/dashboard.js"></script>
 <script src="/js/app.js"></script>
 <script src="/js/auth.js"></script>

@@ -128,8 +128,9 @@ class StravaManager {
   // ── Activity import ───────────────────────────────────────────────
 
   static BIKE_TYPES = new Set(['Ride', 'VirtualRide', 'GravelRide', 'MountainBikeRide', 'EBikeRide']);
+  static RUN_TYPES  = new Set(['Run', 'TrailRun', 'VirtualRun']);
 
-  // Fetch the athlete's cycling activities after the given unix epoch.
+  // Fetch ALL the athlete's activities after the given unix epoch (unfiltered).
   async listActivities(afterEpoch) {
     const token = await this._freshToken();
     if (!token) return [];
@@ -138,8 +139,30 @@ class StravaManager {
       { headers: { Authorization: `Bearer ${token}` } },
     );
     if (!r.ok) return [];
-    const acts = await r.json();
-    return acts.filter(a => StravaManager.BIKE_TYPES.has(a.sport_type || a.type));
+    return r.json();
+  }
+
+  static isBike(act) { return StravaManager.BIKE_TYPES.has(act.sport_type || act.type); }
+  static isRun(act)  { return StravaManager.RUN_TYPES.has(act.sport_type || act.type); }
+
+  // Convert a Strava activity summary into a FreeTrain run record.
+  static activityToRun(act) {
+    const moving   = act.moving_time || 0;
+    const distance = act.distance || 0;
+    const elev     = act.total_elevation_gain || 0;
+    const pace     = distance > 0 ? moving / (distance / 1000) : 0;   // sec/km
+
+    return {
+      name:                act.name || 'Strava Run',
+      date:                String(act.start_date_local || '').slice(0, 10),
+      elapsed:             moving,
+      distance_m:          distance,
+      elevation_gain_m:    elev,
+      avg_pace_sec_per_km: Math.round(pace * 10) / 10,
+      completed:           true,
+      source:              'strava',
+      strava_id:           act.id,
+    };
   }
 
   // Convert a Strava activity summary into a FreeTrain ride record.

@@ -8,17 +8,21 @@ class CalendarPlanner {
     this._plan     = {};
     this._workouts = [];
     this._rides    = [];
+    this._runPlan   = {};
+    this._runs      = [];
     this._selDate  = null;
 
     this._bindEvents();
     this.render();
   }
 
-  // Called from app.js whenever plan, workout list, or ride history changes.
-  update({ plan, workouts, rides } = {}) {
+  // Called from app.js whenever plan, workout list, ride, or run data changes.
+  update({ plan, workouts, rides, runPlan, runs } = {}) {
     if (plan     != null) this._plan     = plan;
     if (workouts != null) this._workouts = workouts;
     if (rides    != null) this._rides    = rides;
+    if (runPlan  != null) this._runPlan  = runPlan;
+    if (runs     != null) this._runs     = runs;
     this.render();
     this._refreshTodayBanner();
   }
@@ -71,17 +75,35 @@ class CalendarPlanner {
         cell.appendChild(chip);
       }
 
-      // Completed ride dots
+      // Planned run chip (read-only — managed from the Run tab)
+      const runEntry = this._runPlan[dateStr];
+      if (runEntry) {
+        const chip = document.createElement('div');
+        chip.className   = 'cal-chip cal-chip-run';
+        const label = (typeof RUN_TYPE_LABELS !== 'undefined' && RUN_TYPE_LABELS[runEntry.run_type]) || runEntry.run_type;
+        const miles = runEntry.target_distance_m ? (runEntry.target_distance_m / 1609.34).toFixed(1) : null;
+        chip.textContent = `🏃 ${label}${miles ? ` · ${miles}mi` : ''}`;
+        cell.appendChild(chip);
+      }
+
+      // Completed ride/run dots
       const ridesDone = this._rides.filter(r => r.date && r.date.startsWith(dateStr));
-      if (ridesDone.length) {
+      const runsDone  = this._runs.filter(r => r.date && r.date.startsWith(dateStr));
+      if (ridesDone.length || runsDone.length) {
         const dots = document.createElement('div');
         dots.className = 'cal-dots';
-        ridesDone.slice(0, 4).forEach(r => {
+        ridesDone.slice(0, 3).forEach(r => {
           const dot = document.createElement('span');
           dot.className = 'cal-dot ' + (r.source === 'strava'
             ? 'strava'
             : (r.completed ? 'done' : 'partial'));
           dot.title = (r.source === 'strava' ? 'Strava: ' : '') + (r.workout_name || 'Ride');
+          dots.appendChild(dot);
+        });
+        runsDone.slice(0, 2).forEach(r => {
+          const dot = document.createElement('span');
+          dot.className = 'cal-dot run';
+          dot.title = `Run: ${r.name || 'Run'}`;
           dots.appendChild(dot);
         });
         cell.appendChild(dots);
