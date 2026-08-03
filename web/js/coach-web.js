@@ -8,16 +8,20 @@
 
 const CoachEngineWeb = (() => {
 
+  // bike_style/run_style ('road'|'mountain' and 'road'|'trail') are answered
+  // right after picking the discipline and drive which goal options show up
+  // next — indoor ERG training/mileage-target math is surface-agnostic, so
+  // only the framing changes, not the engine.
   const ALL_STEPS = [
     'discipline',
-    'bike_goal', 'bike_level', 'bike_days', 'bike_hours', 'bike_ftp',
-    'run_goal', 'run_level', 'run_days', 'run_miles',
+    'bike_style', 'bike_goal', 'bike_level', 'bike_days', 'bike_hours', 'bike_ftp',
+    'run_style', 'run_goal', 'run_level', 'run_days', 'run_miles',
     'notes',
     'confirm',
   ];
 
-  const BIKE_STEPS = new Set(['bike_goal', 'bike_level', 'bike_days', 'bike_hours', 'bike_ftp']);
-  const RUN_STEPS  = new Set(['run_goal', 'run_level', 'run_days', 'run_miles']);
+  const BIKE_STEPS = new Set(['bike_style', 'bike_goal', 'bike_level', 'bike_days', 'bike_hours', 'bike_ftp']);
+  const RUN_STEPS  = new Set(['run_style', 'run_goal', 'run_level', 'run_days', 'run_miles']);
 
   const NUMERIC_STEPS = new Set(['bike_ftp', 'bike_days', 'bike_hours', 'run_days', 'run_miles']);
 
@@ -37,18 +41,32 @@ const CoachEngineWeb = (() => {
     return i + 1 < steps.length ? steps[i + 1] : null;
   }
 
-  const BIKE_GOALS = [
+  // Goal *values* are identical across styles — only the label wording
+  // changes so the choice reads naturally for each style.
+  const BIKE_GOALS_ROAD = [
     { value: 'base_fitness',  label: 'Base Fitness' },
     { value: 'build_fitness', label: 'Build Fitness' },
     { value: 'century',       label: 'Century / Gran Fondo' },
     { value: 'race_prep',     label: 'Race Prep' },
   ];
-  const RUN_GOALS = [
+  const BIKE_GOALS_MTB = [
+    { value: 'base_fitness',  label: 'Base Fitness' },
+    { value: 'build_fitness', label: 'Build Fitness' },
+    { value: 'century',       label: 'Endurance / All-Day Ride' },
+    { value: 'race_prep',     label: 'XC / Enduro Race Prep' },
+  ];
+  const RUN_GOALS_ROAD = [
     { value: 'base_mileage',  label: 'Base Mileage' },
     { value: 'five_k',        label: '5K' },
     { value: 'ten_k',         label: '10K' },
     { value: 'half_marathon', label: 'Half Marathon' },
     { value: 'marathon',      label: 'Marathon' },
+  ];
+  const RUN_GOALS_TRAIL = [
+    { value: 'base_mileage',  label: 'Base Mileage' },
+    { value: 'half_marathon', label: 'Trail Half Marathon' },
+    { value: 'marathon',      label: 'Trail Marathon' },
+    { value: 'ultra',         label: 'Ultra (50K+)' },
   ];
   const LEVELS = [
     { value: 'beginner',     label: 'Beginner' },
@@ -63,17 +81,25 @@ const CoachEngineWeb = (() => {
     { value: 'running', label: 'Running' },
     { value: 'both',    label: 'Both' },
   ];
+  const BIKE_STYLE = [
+    { value: 'road',     label: 'Road' },
+    { value: 'mountain', label: 'Mountain' },
+  ];
+  const RUN_STYLE = [
+    { value: 'road',  label: 'Road' },
+    { value: 'trail', label: 'Trail' },
+  ];
 
   const STEP_META = {
     discipline: { text: "Want a training plan? Let's set one up — cycling, running, or both?",
                   type: 'quick_reply', options: DISCIPLINE },
-    bike_goal:  { text: "What's your cycling goal?", type: 'quick_reply', options: BIKE_GOALS },
+    bike_style: { text: 'Road or mountain biking?', type: 'quick_reply', options: BIKE_STYLE },
     bike_level: { text: "What's your cycling experience level?", type: 'quick_reply', options: LEVELS },
     bike_days:  { text: 'How many days a week do you want to ride?', type: 'quick_reply', options: BIKE_DAYS },
     bike_hours: { text: 'About how many hours a week can you train?', type: 'quick_reply', options: BIKE_HOURS },
     bike_ftp:   { text: "What's your current FTP, in watts? A rough guess is fine.",
                   type: 'number_input', unit: 'W', placeholder: 'e.g. 220' },
-    run_goal:   { text: "What's your running goal?", type: 'quick_reply', options: RUN_GOALS },
+    run_style:  { text: 'Road or trail running?', type: 'quick_reply', options: RUN_STYLE },
     run_level:  { text: "What's your running experience level?", type: 'quick_reply', options: LEVELS },
     run_days:   { text: 'How many days a week do you want to run?', type: 'quick_reply', options: RUN_DAYS },
     run_miles:  { text: 'About how many miles a week do you want to target?',
@@ -86,7 +112,20 @@ const CoachEngineWeb = (() => {
                             { value: 'restart',  label: 'Start over' }] },
   };
 
+  function goalOptions(step, profilePartial) {
+    if (step === 'bike_goal') {
+      return profilePartial.bike_style === 'mountain' ? BIKE_GOALS_MTB : BIKE_GOALS_ROAD;
+    }
+    return profilePartial.run_style === 'trail' ? RUN_GOALS_TRAIL : RUN_GOALS_ROAD;
+  }
+
   function stepPrompt(step, profilePartial) {
+    if (step === 'bike_goal' || step === 'run_goal') {
+      const rawText = step === 'bike_goal' ? "What's your cycling goal?" : "What's your running goal?";
+      const text = composeMessage('onboarding_step', { step, text: rawText, profile: profilePartial });
+      return { text, message_type: 'quick_reply', payload: { step, options: goalOptions(step, profilePartial) } };
+    }
+
     const meta = STEP_META[step];
     const text = composeMessage('onboarding_step', { step, text: meta.text, profile: profilePartial });
     if (meta.type === 'quick_reply') {

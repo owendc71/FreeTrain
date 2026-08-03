@@ -390,6 +390,7 @@ async def _finish_onboarding(user_id: str, profile_so_far: dict):
         days  = int(profile_so_far.get("bike_days", 4))
         hours = float(profile_so_far.get("bike_hours", 5))
         fields.update({
+            "bike_style":         profile_so_far.get("bike_style", "road"),
             "bike_goal":          profile_so_far.get("bike_goal"),
             "bike_level":         profile_so_far.get("bike_level", "intermediate"),
             "bike_days_per_week": days,
@@ -399,6 +400,7 @@ async def _finish_onboarding(user_id: str, profile_so_far: dict):
 
     if discipline in ("running", "both") and profile_so_far.get("run_goal"):
         fields.update({
+            "run_style":         profile_so_far.get("run_style", "road"),
             "run_goal":          profile_so_far.get("run_goal"),
             "run_level":         profile_so_far.get("run_level", "intermediate"),
             "run_days_per_week": int(profile_so_far.get("run_days", 4)),
@@ -423,7 +425,8 @@ async def _finish_onboarding(user_id: str, profile_so_far: dict):
             "session_mins":  round((hours * 60) / max(days, 1)),
             "ftp":           fields.get("bike_ftp"),
         })
-        summary_bits.append(f"{n} cycling sessions")
+        bike_label = "mountain biking" if fields["bike_style"] == "mountain" else "cycling"
+        summary_bits.append(f"{n} {bike_label} sessions")
 
     if fields.get("run_goal"):
         n = await _do_generate_run_plan(user_id, {
@@ -432,7 +435,8 @@ async def _finish_onboarding(user_id: str, profile_so_far: dict):
             "days_per_week": fields["run_days_per_week"],
             "weekly_miles":  fields["run_weekly_miles"],
         })
-        summary_bits.append(f"{n} runs")
+        run_label = "trail runs" if fields["run_style"] == "trail" else "runs"
+        summary_bits.append(f"{n} {run_label}")
 
     text = "Your 6-week plan is ready" + (f" — {', '.join(summary_bits)} scheduled. "
            "I'll check in with you after every workout and adjust things as we go." if summary_bits

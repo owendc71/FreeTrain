@@ -12,7 +12,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 from typing import Optional
 
-_RACE_GOALS = {"five_k", "ten_k", "half_marathon", "marathon"}
+_RACE_GOALS = {"five_k", "ten_k", "half_marathon", "marathon", "ultra"}
 
 _DESCRIPTIONS = {
     "recovery":  "Very easy shakeout run. Effort should feel almost too easy.",

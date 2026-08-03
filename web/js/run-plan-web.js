@@ -7,7 +7,7 @@
 
 const RunPlanWebEngine = (() => {
 
-  const RACE_GOALS = new Set(['five_k', 'ten_k', 'half_marathon', 'marathon']);
+  const RACE_GOALS = new Set(['five_k', 'ten_k', 'half_marathon', 'marathon', 'ultra']);
 
   const DESCRIPTIONS = {
     recovery:  'Very easy shakeout run. Effort should feel almost too easy.',

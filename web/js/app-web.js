@@ -680,6 +680,7 @@ async function _finishOnboarding(profileSoFar) {
   if ((discipline === 'cycling' || discipline === 'both') && profileSoFar.bike_goal) {
     const days  = parseInt(profileSoFar.bike_days || '4', 10);
     const hours = parseFloat(profileSoFar.bike_hours || '5');
+    fields.bike_style         = profileSoFar.bike_style || 'road';
     fields.bike_goal          = profileSoFar.bike_goal;
     fields.bike_level         = profileSoFar.bike_level || 'intermediate';
     fields.bike_days_per_week = days;
@@ -688,6 +689,7 @@ async function _finishOnboarding(profileSoFar) {
   }
 
   if ((discipline === 'running' || discipline === 'both') && profileSoFar.run_goal) {
+    fields.run_style         = profileSoFar.run_style || 'road';
     fields.run_goal          = profileSoFar.run_goal;
     fields.run_level         = profileSoFar.run_level || 'intermediate';
     fields.run_days_per_week = parseInt(profileSoFar.run_days || '4', 10);
@@ -709,7 +711,8 @@ async function _finishOnboarding(profileSoFar) {
       session_mins:  Math.round((fields.bike_weekly_hours * 60) / Math.max(fields.bike_days_per_week, 1)),
       ftp:           fields.bike_ftp,
     });
-    summaryBits.push(`${n} cycling sessions`);
+    const bikeLabel = fields.bike_style === 'mountain' ? 'mountain biking' : 'cycling';
+    summaryBits.push(`${n} ${bikeLabel} sessions`);
   }
   if (fields.run_goal) {
     const n = await _generateRunPlan({
@@ -718,7 +721,8 @@ async function _finishOnboarding(profileSoFar) {
       days_per_week: fields.run_days_per_week,
       weekly_miles:  fields.run_weekly_miles,
     });
-    summaryBits.push(`${n} runs`);
+    const runLabel = fields.run_style === 'trail' ? 'trail runs' : 'runs';
+    summaryBits.push(`${n} ${runLabel}`);
   }
 
   const text = 'Your 6-week plan is ready' + (summaryBits.length
