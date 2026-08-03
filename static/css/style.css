@@ -1317,6 +1317,12 @@ input::placeholder { color: var(--text-3); }
 }
 .coach-panel-title svg { color: var(--blue); }
 
+.coach-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .coach-restart-btn {
   background: none;
   border: none;

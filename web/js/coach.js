@@ -20,6 +20,7 @@ class CoachChat {
     this._textInput   = document.getElementById('coach-text-input');
     this._textSend    = document.getElementById('coach-text-send');
     this._restartBtn  = document.getElementById('coach-restart-btn');
+    this._clearBtn    = document.getElementById('coach-clear-btn');
 
     this._bindEvents();
   }
@@ -38,6 +39,14 @@ class CoachChat {
   appendMessage(msg) {
     if (!msg) return;
     this._messages.push(msg);
+    this._render();
+  }
+
+  // Called on 'coach_cleared' (local WS push) or right after clearing the
+  // transcript (web build) — wipes the visible chat immediately, ahead of
+  // whatever re-seeded prompt arrives next.
+  reset() {
+    this._messages = [];
     this._render();
   }
 
@@ -147,6 +156,11 @@ class CoachChat {
     this._restartBtn?.addEventListener('click', () => {
       if (confirm("Redo your training profile? This won't touch your existing calendar until you generate a new plan.")) {
         window.sendWS({ action: 'coach_start_onboarding' });
+      }
+    });
+    this._clearBtn?.addEventListener('click', () => {
+      if (confirm('Clear the chat history? This only clears the conversation — your calendar is untouched.')) {
+        window.sendWS({ action: 'clear_chat' });
       }
     });
   }

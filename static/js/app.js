@@ -94,6 +94,10 @@ function handleMessage(msg) {
       if (window._coach) window._coach.appendMessage(msg.message);
       break;
 
+    case 'coach_cleared':
+      if (window._coach) window._coach.reset();
+      break;
+
     case 'workouts_updated':
       updateWorkoutList(msg.workouts);
       if (window._planner) window._planner.update({ workouts: msg.workouts });

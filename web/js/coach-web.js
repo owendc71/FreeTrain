@@ -188,6 +188,17 @@ const CoachWeb = (() => {
     return data || [];
   }
 
+  // The single most recent coach_messages row, or null.
+  async function getLatestMessage(sb, userId) {
+    const { data } = await sb.from('coach_messages').select('*')
+      .eq('user_id', userId).order('created_at', { ascending: false }).limit(1);
+    return (data && data[0]) || null;
+  }
+
+  async function clearMessages(sb, userId) {
+    await sb.from('coach_messages').delete().eq('user_id', userId);
+  }
+
   async function postMessage(sb, userId, role, text, messageType = 'plain', payload = {}) {
     const { data } = await sb.from('coach_messages').insert({
       user_id: userId, role, text, message_type: messageType, payload,
@@ -220,7 +231,7 @@ const CoachWeb = (() => {
   }
 
   return {
-    getProfile, saveProfile, getMessages, postMessage,
+    getProfile, saveProfile, getMessages, getLatestMessage, clearMessages, postMessage,
     setRideFeedback, setRunFeedback, ridesNeedingCheckin, runsNeedingCheckin,
   };
 })();

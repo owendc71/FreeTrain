@@ -198,6 +198,12 @@ class CalendarPlanner {
       this.render();
     });
 
+    document.getElementById('cal-clear-btn')?.addEventListener('click', () => {
+      if (confirm('Clear your generated calendar? This removes all scheduled workouts and runs.')) {
+        window.sendWS({ action: 'clear_calendar' });
+      }
+    });
+
     document.getElementById('day-save-btn').addEventListener('click',   () => this._save());
     document.getElementById('day-cancel-btn').addEventListener('click', () => this._closeModal());
     document.getElementById('day-ride-btn').addEventListener('click',   () => this._rideNow());

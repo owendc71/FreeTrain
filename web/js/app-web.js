@@ -33,8 +33,14 @@ let _runs    = [];
 let _runPlan = {};
 let _profile = null;   // athlete_profiles row, or null before onboarding
 
-// sendWS is the universal message bus — routes to _handleAction in web mode
-window.sendWS = msg => _handleAction(msg);
+// sendWS is the universal message bus — routes to _handleAction in web mode.
+// _handleAction is async; without a .catch() here, any failure (a bad
+// Postgrest call, a coach-state mismatch, etc.) becomes a silent unhandled
+// promise rejection — the button just looks like it did nothing.
+window.sendWS = msg => _handleAction(msg).catch(err => {
+  console.error('Action failed:', msg.action, err);
+  toast('Something went wrong — please try again.');
+});
 
 function _syncDashboard() {
   if (window._dashboard) window._dashboard.update({
@@ -367,6 +373,14 @@ async function _handleAction(msg) {
     case 'coach_start_onboarding':
       await _coachStartOnboarding();
       break;
+
+    case 'clear_calendar':
+      await _clearCalendar();
+      break;
+
+    case 'clear_chat':
+      await _clearChat();
+      break;
   }
 }
 
@@ -621,6 +635,29 @@ async function _clearGeneratedRunPlan(silent = false) {
   }
 }
 
+// ── Clear calendar / clear chat ────────────────────────────────────
+async function _clearCalendar() {
+  await _clearGeneratedPlan(true);
+  await _clearGeneratedRunPlan(true);
+
+  const workouts = await _fetchWorkouts();
+  _plan = await _fetchPlan();
+  updateWorkoutList(workouts);
+  if (window._planner) window._planner.update({ plan: _plan, workouts });
+  _syncDashboard();
+
+  _runPlan = await _fetchRunPlan();
+  _syncRunViews();
+
+  toast('Calendar cleared.');
+}
+
+async function _clearChat() {
+  await CoachWeb.clearMessages(_sb, _userId);
+  if (window._coach) window._coach.reset();
+  await _loadCoachData();
+}
+
 // ── Coach chat ───────────────────────────────────────────────────────
 // Onboarding survey + post-workout check-ins, driven entirely by
 // CoachEngineWeb's rule-based state machine (the web twin of
@@ -644,10 +681,8 @@ async function _postCoachStep(step, profileSoFar) {
 }
 
 async function _getPendingCoachStep() {
-  const messages = await CoachWeb.getMessages(_sb, _userId, 5);
-  if (!messages.length) return null;
-  const last = messages[messages.length - 1];
-  if (last.role === 'coach' && ['quick_reply', 'number_input', 'free_text'].includes(last.message_type)) {
+  const last = await CoachWeb.getLatestMessage(_sb, _userId);
+  if (last && last.role === 'coach' && ['quick_reply', 'number_input', 'free_text'].includes(last.message_type)) {
     return last;
   }
   return null;

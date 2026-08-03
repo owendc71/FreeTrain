@@ -392,6 +392,22 @@ async def get_coach_messages(user_id: str, limit: int = 200) -> list[dict]:
     return r.data or []
 
 
+async def get_latest_coach_message(user_id: str) -> Optional[dict]:
+    """The single most recent coach_messages row, or None."""
+    r = await _run(lambda: db.table("coach_messages")
+                              .select("*")
+                              .eq("user_id", user_id)
+                              .order("created_at", desc=True)
+                              .limit(1)
+                              .execute())
+    return r.data[0] if r.data else None
+
+
+async def clear_coach_messages(user_id: str):
+    await _run(lambda: db.table("coach_messages").delete()
+                          .eq("user_id", user_id).execute())
+
+
 async def save_coach_message(
     user_id: str, role: str, text: str,
     message_type: str = "plain", payload: Optional[dict] = None,

@@ -18,9 +18,11 @@ from plan_engine import apply_adaptation, compute_adaptation, generate_plan
 from run_plan_engine import apply_run_adaptation, compute_run_adaptation, generate_run_plan
 from supabase_client import (
     SUPABASE_ANON_KEY, SUPABASE_URL,
-    clear_generated_plan, clear_run_plan, delete_ride, delete_run,
+    clear_coach_messages, clear_generated_plan, clear_run_plan,
+    delete_ride, delete_run,
     delete_strava_connection, delete_workout, get_athlete_profile,
-    get_coach_messages, get_plan, get_rides, get_rides_needing_checkin,
+    get_coach_messages, get_latest_coach_message, get_plan, get_rides,
+    get_rides_needing_checkin,
     get_run_plan, get_runs, get_runs_needing_checkin, get_strava_connection,
     get_upcoming_generated_workouts, get_workouts,
     save_athlete_profile, save_coach_message, save_generated_plan,
@@ -300,11 +302,8 @@ async def _post_coach_step(user_id: str, step: str, profile_so_far: dict):
 
 async def _get_pending_coach_step(user_id: str) -> Optional[dict]:
     """The most recent coach message, if it's still awaiting a reply."""
-    messages = await get_coach_messages(user_id, limit=5)
-    if not messages:
-        return None
-    last = messages[-1]
-    if last["role"] == "coach" and last["message_type"] in ("quick_reply", "number_input", "free_text"):
+    last = await get_latest_coach_message(user_id)
+    if last and last["role"] == "coach" and last["message_type"] in ("quick_reply", "number_input", "free_text"):
         return last
     return None
 
@@ -515,6 +514,25 @@ async def _handle_coach_start_onboarding(user_id: str):
     await _post_coach_step(user_id, "discipline", {})
 
 
+async def _handle_clear_calendar(user_id: str):
+    """Wipe both generated plans (cycling + running) — leaves the coach
+    profile/conversation untouched."""
+    await clear_generated_plan(user_id)
+    await clear_run_plan(user_id)
+    plan, run_plan = await asyncio.gather(get_plan(user_id), get_run_plan(user_id))
+    await _broadcast(user_id, {"type": "plan_updated", "plan": plan})
+    await _broadcast(user_id, {"type": "run_plan_updated", "run_plan": run_plan})
+
+
+async def _handle_clear_chat(user_id: str):
+    """Wipe the coach transcript. If onboarding was never finished (or the
+    profile doesn't exist yet), this also restarts it — same rule
+    _seed_onboarding_if_new already applies to brand-new users."""
+    await clear_coach_messages(user_id)
+    await _broadcast(user_id, {"type": "coach_cleared"})
+    await _seed_onboarding_if_new(user_id)
+
+
 # ── Broadcast ─────────────────────────────────────────────────────────
 
 async def _broadcast(user_id: str, msg: dict):
@@ -603,7 +621,18 @@ async def ws_endpoint(ws: WebSocket, token: str = Query(default=None)):
     try:
         while True:
             raw = await ws.receive_text()
-            await _handle(user_id, json.loads(raw))
+            msg = json.loads(raw)
+            try:
+                await _handle(user_id, msg)
+            except Exception:
+                # A bug in one action must not silently kill the whole
+                # connection — log it with a full traceback and tell the
+                # user, but keep the socket (and their session) alive.
+                log.exception("Error handling action=%r for user=%s", msg.get("action"), user_id)
+                await _broadcast(user_id, {
+                    "type":    "error",
+                    "message": "Something went wrong processing that — please try again.",
+                })
     except WebSocketDisconnect:
         _sockets.get(user_id, set()).discard(ws)
         log.info("WS disconnected: user=%s", user_id)
@@ -719,6 +748,12 @@ async def _handle(user_id: str, msg: dict):
 
     elif action == "coach_start_onboarding":
         await _handle_coach_start_onboarding(user_id)
+
+    elif action == "clear_calendar":
+        await _handle_clear_calendar(user_id)
+
+    elif action == "clear_chat":
+        await _handle_clear_chat(user_id)
 
     # ── Run history ──
     elif action == "get_runs":
