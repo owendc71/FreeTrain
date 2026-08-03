@@ -143,6 +143,24 @@ const RunPlanWebEngine = (() => {
       }
     }
 
+    // ── Signal 3: subjective feedback nudge ──────────────────────────
+    const fbNudges = { too_easy: 0.04, just_right: 0.0, too_hard: -0.06 };
+    const fbByDate = {};
+    runs.forEach(r => {
+      const d = String(r.date || '').slice(0, 10);
+      if (d && r.feedback) fbByDate[d] = r.feedback;   // last one wins if same-day dupes
+    });
+    const fbValues = pastPlanned.map(([ds]) => fbByDate[ds]).filter(Boolean);
+    if (fbValues.length) {
+      const fbDelta = fbValues.reduce((s, f) => s + (fbNudges[f] || 0), 0) / fbValues.length;
+      if (Math.abs(fbDelta) >= 0.01) {
+        factor += fbDelta;
+        note += fbDelta > 0
+          ? " You've told me recent runs felt easy, so upcoming volume is nudged up a bit more."
+          : " You've flagged recent runs as tough, so upcoming volume is eased back further.";
+      }
+    }
+
     factor = Math.max(-0.15, Math.min(0.10, factor));
     const status = factor > 0.02 ? 'adjusted_up' : factor < -0.02 ? 'adjusted_down' : 'on_track';
     if (status === 'on_track' && !note.endsWith('build.')) note += ' Plan is progressing as intended.';

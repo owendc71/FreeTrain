@@ -31,6 +31,7 @@ let _rides   = [];
 let _plan    = {};
 let _runs    = [];
 let _runPlan = {};
+let _profile = null;   // athlete_profiles row, or null before onboarding
 
 // sendWS is the universal message bus — routes to _handleAction in web mode
 window.sendWS = msg => _handleAction(msg);
@@ -82,6 +83,7 @@ window.startApp = async function(token) {
   updateStravaUI();
 
   await _loadInitialData();
+  await _loadCoachData();
 
   // Pull any new Strava activities in the background
   if (_strava.isConnected()) _stravaSync();
@@ -117,7 +119,8 @@ async function _stravaSync() {
       if (window._planner) window._planner.update({ rides: _rides });
       _syncDashboard();
       toast(`Imported ${importedRides} ride${importedRides === 1 ? '' : 's'} from Strava`);
-      await _runAdaptation();
+      await _runAdaptation({ postAsCoachMessage: true });
+      await _queueCheckinIfIdle();
     }
 
     if (importedRuns) {
@@ -125,7 +128,8 @@ async function _stravaSync() {
       _syncRunViews();
       _syncDashboard();
       toast(`Imported ${importedRuns} run${importedRuns === 1 ? '' : 's'} from Strava`);
-      await _runRunAdaptation();
+      await _runRunAdaptation({ postAsCoachMessage: true });
+      await _queueCheckinIfIdle();
     }
   } catch (e) {
     console.error('Strava sync:', e);
@@ -133,9 +137,11 @@ async function _stravaSync() {
 }
 
 // ── Adaptive plan: recompute and adjust the next generated workouts ──
-async function _runAdaptation() {
+async function _runAdaptation({ postAsCoachMessage = false } = {}) {
   const result = PlanWebEngine.computeAdaptation(_rides);
-  if (window._planGen) window._planGen.showInsights(result);
+  if (postAsCoachMessage) {
+    await _postCoachText(CoachEngineWeb.composeMessage('adaptation_result', result));
+  }
   if (Math.abs(result.factor) < 0.005) return;
 
   const today   = new Date().toISOString().slice(0, 10);
@@ -158,9 +164,11 @@ async function _runAdaptation() {
 }
 
 // ── Adaptive run plan: recompute and adjust the next planned run days ──
-async function _runRunAdaptation() {
+async function _runRunAdaptation({ postAsCoachMessage = false } = {}) {
   const result = RunPlanWebEngine.computeRunAdaptation(_runs, _runPlan);
-  if (window._runPlanGen) window._runPlanGen.showInsights(result);
+  if (postAsCoachMessage) {
+    await _postCoachText(CoachEngineWeb.composeMessage('adaptation_result', result));
+  }
   if (Math.abs(result.factor) < 0.005) return;
 
   const today   = new Date().toISOString().slice(0, 10);
@@ -347,27 +355,17 @@ async function _handleAction(msg) {
       break;
     }
 
-    // ── Generated plan ─────────────────────────────────────────────
-    case 'generate_plan':
-      await _generatePlan(msg.profile);
-      if (msg.profile.ftp) {
-        state.ftp = msg.profile.ftp;
-        const ftpInput = document.getElementById('ftp-input');
-        if (ftpInput) ftpInput.value = msg.profile.ftp;
-      }
+    // ── Coach chat ───────────────────────────────────────────────────
+    case 'coach_reply':
+      await _coachReply(msg.step, msg.value);
       break;
 
-    case 'clear_plan':
-      await _clearGeneratedPlan();
+    case 'coach_checkin_reply':
+      await _coachCheckinReply(msg.kind, msg.activity_id, msg.feedback);
       break;
 
-    // ── Generated run plan ──────────────────────────────────────────
-    case 'generate_run_plan':
-      await _generateRunPlan(msg.profile);
-      break;
-
-    case 'clear_run_plan':
-      await _clearGeneratedRunPlan();
+    case 'coach_start_onboarding':
+      await _coachStartOnboarding();
       break;
   }
 }
@@ -484,7 +482,8 @@ async function _onSaveRide(ride) {
   renderHistory(_rides);
 
   // Adaptive plan: recompute and adjust upcoming generated workouts
-  await _runAdaptation();
+  await _runAdaptation({ postAsCoachMessage: true });
+  await _queueCheckinIfIdle();
 
   if (window._planner) window._planner.update({ rides: _rides });
   _syncDashboard();
@@ -550,8 +549,15 @@ async function _generatePlan(profile) {
   updateWorkoutList(workouts);
   if (window._planner) window._planner.update({ plan: _plan, workouts });
   _syncDashboard();
-  if (window._pgClose) window._pgClose();
+
+  if (profile.ftp) {
+    state.ftp = profile.ftp;
+    const ftpInput = document.getElementById('ftp-input');
+    if (ftpInput) ftpInput.value = profile.ftp;
+  }
+
   toast(`6-week plan created — ${count} sessions scheduled.`);
+  return count;
 }
 
 async function _clearGeneratedPlan(silent = false) {
@@ -602,9 +608,8 @@ async function _generateRunPlan(profile) {
 
   _runPlan = await _fetchRunPlan();
   _syncRunViews();
-  const overlay = document.getElementById('rpg-overlay');
-  if (overlay) { overlay.style.display = 'none'; document.body.style.overflow = ''; }
   toast(`6-week run plan created — ${count} runs scheduled.`);
+  return count;
 }
 
 async function _clearGeneratedRunPlan(silent = false) {
@@ -614,6 +619,185 @@ async function _clearGeneratedRunPlan(silent = false) {
     _syncRunViews();
     toast('Generated run plan cleared.');
   }
+}
+
+// ── Coach chat ───────────────────────────────────────────────────────
+// Onboarding survey + post-workout check-ins, driven entirely by
+// CoachEngineWeb's rule-based state machine (the web twin of
+// server/coach_engine.py). Conversation state lives in the coach_messages
+// transcript itself — no separate "session" table needed.
+
+async function _postCoachRow(role, text, messageType = 'plain', payload = {}) {
+  const row = await CoachWeb.postMessage(_sb, _userId, role, text, messageType, payload);
+  if (window._coach) window._coach.appendMessage(row);
+  return row;
+}
+
+async function _postCoachText(text) {
+  if (text) await _postCoachRow('coach', text);
+}
+
+async function _postCoachStep(step, profileSoFar) {
+  const prompt = CoachEngineWeb.stepPrompt(step, profileSoFar);
+  prompt.payload.profile_so_far = profileSoFar;
+  await _postCoachRow('coach', prompt.text, prompt.message_type, prompt.payload);
+}
+
+async function _getPendingCoachStep() {
+  const messages = await CoachWeb.getMessages(_sb, _userId, 5);
+  if (!messages.length) return null;
+  const last = messages[messages.length - 1];
+  if (last.role === 'coach' && ['quick_reply', 'number_input', 'free_text'].includes(last.message_type)) {
+    return last;
+  }
+  return null;
+}
+
+function _labelForReply(pending, value) {
+  if (pending.message_type === 'quick_reply') {
+    const opts  = pending.payload.options || [];
+    const match = opts.find(o => o.value === value);
+    if (match) return match.label;
+  }
+  return String(value);
+}
+
+async function _loadCoachData() {
+  let profile  = await CoachWeb.getProfile(_sb, _userId);
+  let messages = await CoachWeb.getMessages(_sb, _userId);
+  if (!profile && !messages.length) {
+    await _postCoachStep('discipline', {});
+    messages = await CoachWeb.getMessages(_sb, _userId);
+  }
+  _profile = profile;
+  if (window._coach) window._coach.mount({ profile, messages });
+}
+
+async function _finishOnboarding(profileSoFar) {
+  const discipline = profileSoFar.discipline || 'both';
+  const fields = {};
+
+  if ((discipline === 'cycling' || discipline === 'both') && profileSoFar.bike_goal) {
+    const days  = parseInt(profileSoFar.bike_days || '4', 10);
+    const hours = parseFloat(profileSoFar.bike_hours || '5');
+    fields.bike_goal          = profileSoFar.bike_goal;
+    fields.bike_level         = profileSoFar.bike_level || 'intermediate';
+    fields.bike_days_per_week = days;
+    fields.bike_weekly_hours  = hours;
+    fields.bike_ftp           = profileSoFar.bike_ftp ? parseInt(profileSoFar.bike_ftp, 10) : null;
+  }
+
+  if ((discipline === 'running' || discipline === 'both') && profileSoFar.run_goal) {
+    fields.run_goal          = profileSoFar.run_goal;
+    fields.run_level         = profileSoFar.run_level || 'intermediate';
+    fields.run_days_per_week = parseInt(profileSoFar.run_days || '4', 10);
+    fields.run_weekly_miles  = parseFloat(profileSoFar.run_miles || '15');
+  }
+
+  const notes = (profileSoFar.notes || '').trim();
+  if (notes && notes.toLowerCase() !== 'skip') fields.notes = notes;
+
+  fields.onboarded_at = new Date().toISOString();
+  _profile = await CoachWeb.saveProfile(_sb, _userId, fields);
+
+  const summaryBits = [];
+  if (fields.bike_goal) {
+    const n = await _generatePlan({
+      goal:          fields.bike_goal,
+      level:         fields.bike_level,
+      days_per_week: fields.bike_days_per_week,
+      session_mins:  Math.round((fields.bike_weekly_hours * 60) / Math.max(fields.bike_days_per_week, 1)),
+      ftp:           fields.bike_ftp,
+    });
+    summaryBits.push(`${n} cycling sessions`);
+  }
+  if (fields.run_goal) {
+    const n = await _generateRunPlan({
+      goal:          fields.run_goal,
+      level:         fields.run_level,
+      days_per_week: fields.run_days_per_week,
+      weekly_miles:  fields.run_weekly_miles,
+    });
+    summaryBits.push(`${n} runs`);
+  }
+
+  const text = 'Your 6-week plan is ready' + (summaryBits.length
+    ? ` — ${summaryBits.join(', ')} scheduled. I'll check in with you after every workout and adjust things as we go.`
+    : ". Come back and tell me how each workout goes, and I'll adjust as we go.");
+  await _postCoachRow('coach', text, 'plan_summary');
+}
+
+async function _coachReply(step, value) {
+  const pending = await _getPendingCoachStep();
+  if (!pending || pending.payload.step !== step) return;   // stale or duplicate reply — ignore
+
+  const profileSoFar = { ...(pending.payload.profile_so_far || {}) };
+
+  const label = _labelForReply(pending, value);
+  await _postCoachRow('user', label, 'plain', { step, value });
+
+  if (step === 'confirm') {
+    if (value === 'restart') {
+      await _postCoachStep('discipline', {});
+    } else {
+      await _finishOnboarding(profileSoFar);
+    }
+    return;
+  }
+
+  profileSoFar[step] = value;
+  const discipline = profileSoFar.discipline || 'both';
+  const nxt = CoachEngineWeb.nextStep(discipline, step) || 'confirm';
+  await _postCoachStep(nxt, profileSoFar);
+}
+
+async function _queueCheckinIfIdle() {
+  if (await _getPendingCoachStep()) return;
+  if (!_profile || !_profile.onboarded_at) return;   // no retroactive check-ins before onboarding
+
+  const since = _profile.onboarded_at;
+  const ridesNeeding = await CoachWeb.ridesNeedingCheckin(_sb, _userId, since, 1);
+  if (ridesNeeding.length) {
+    const r = ridesNeeding[0];
+    const prompt = CoachEngineWeb.checkinPrompt('ride', r.workout_name || 'your ride');
+    prompt.payload.activity_id = r.id;
+    await _postCoachRow('coach', prompt.text, prompt.message_type, prompt.payload);
+    return;
+  }
+
+  const runsNeeding = await CoachWeb.runsNeedingCheckin(_sb, _userId, since, 1);
+  if (runsNeeding.length) {
+    const r = runsNeeding[0];
+    const prompt = CoachEngineWeb.checkinPrompt('run', r.name || 'your run');
+    prompt.payload.activity_id = r.id;
+    await _postCoachRow('coach', prompt.text, prompt.message_type, prompt.payload);
+  }
+}
+
+async function _coachCheckinReply(kind, activityId, feedback) {
+  const pending = await _getPendingCoachStep();
+  if (!pending || pending.payload.kind !== kind || pending.payload.activity_id !== activityId) return;
+
+  const label = (CoachEngineWeb.CHECKIN_OPTIONS.find(o => o.value === feedback) || {}).label || feedback;
+  await _postCoachRow('user', label, 'plain', { kind, activity_id: activityId, feedback });
+
+  if (kind === 'ride') {
+    await CoachWeb.setRideFeedback(_sb, activityId, feedback);
+    const r = _rides.find(x => x.id === activityId);
+    if (r) r.feedback = feedback;
+    await _runAdaptation({ postAsCoachMessage: true });
+  } else {
+    await CoachWeb.setRunFeedback(_sb, activityId, feedback);
+    const r = _runs.find(x => x.id === activityId);
+    if (r) r.feedback = feedback;
+    await _runRunAdaptation({ postAsCoachMessage: true });
+  }
+
+  await _queueCheckinIfIdle();
+}
+
+async function _coachStartOnboarding() {
+  await _postCoachStep('discipline', {});
 }
 
 // ── Workout list ──────────────────────────────────────────────────
@@ -935,18 +1119,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Init creator, planner, plan generator
-  window._creator    = new WorkoutCreator();
-  window._planner    = new CalendarPlanner();
-  window._planGen    = new PlanGenerator();
-  window._dashboard  = new TrainingDashboard();
-  window._runTab     = new RunTab();
-  window._runPlanGen = new RunPlanGenerator();
-
-  window._pgClose = () => {
-    const o = document.getElementById('pg-overlay');
-    if (o) { o.style.display = 'none'; document.body.style.overflow = ''; }
-  };
+  // Init creator, planner, dashboard, run tab, coach chat
+  window._creator   = new WorkoutCreator();
+  window._planner   = new CalendarPlanner();
+  window._dashboard = new TrainingDashboard();
+  window._runTab    = new RunTab();
+  window._coach     = new CoachChat();
 
   // Today's plan banner → load into ride tab
   document.getElementById('today-plan-load').addEventListener('click', () => {

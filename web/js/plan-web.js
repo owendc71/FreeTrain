@@ -237,6 +237,19 @@ const PlanWebEngine = (() => {
       }
     }
 
+    // ── Signal 3: subjective feedback nudge ──────────────────────────
+    const fbNudges = { too_easy: 0.04, just_right: 0.0, too_hard: -0.06 };
+    const fbValues = recent.map(r => r.feedback).filter(Boolean);
+    if (fbValues.length) {
+      const fbDelta = fbValues.reduce((s, f) => s + (fbNudges[f] || 0), 0) / fbValues.length;
+      if (Math.abs(fbDelta) >= 0.01) {
+        factor += fbDelta;
+        note += fbDelta > 0
+          ? " You've told me recent sessions felt easy, so intensity is nudged up a bit more."
+          : " You've flagged recent sessions as tough, so intensity is eased back further.";
+      }
+    }
+
     factor = Math.max(-0.15, Math.min(0.10, factor));
     const status = factor > 0.02 ? 'adjusted_up' : factor < -0.02 ? 'adjusted_down' : 'on_track';
     if (status === 'on_track' && !note.endsWith('push.')) note += ' Plan is progressing as intended.';

@@ -78,7 +78,7 @@ async def delete_workout(user_id: str, workout_id: str):
 # ── Rides ──────────────────────────────────────────────────────────
 
 _RIDE_COLS = ("id,workout_name,date,elapsed,total_duration,"
-              "avg_power,normalized_power,intensity_factor,tss,ftp,completed,strava_id,source")
+              "avg_power,normalized_power,intensity_factor,tss,ftp,completed,strava_id,source,feedback")
 
 
 async def get_rides(user_id: str) -> list[dict]:
@@ -224,7 +224,7 @@ async def update_workout_intervals(workout_id: str, intervals: list[dict]):
 # ── Runs ───────────────────────────────────────────────────────────
 
 _RUN_COLS = ("id,name,date,elapsed,distance_m,elevation_gain_m,"
-             "avg_pace_sec_per_km,completed,source,strava_id")
+             "avg_pace_sec_per_km,completed,source,strava_id,feedback")
 
 
 async def get_runs(user_id: str) -> list[dict]:
@@ -358,3 +358,89 @@ async def set_plan_day(user_id: str, date_str: str, workout_id: Optional[str]):
             "date":       date_str,
             "workout_id": workout_id,
         }).execute())
+
+
+# ── Coach: athlete profile ───────────────────────────────────────────
+
+async def get_athlete_profile(user_id: str) -> Optional[dict]:
+    r = await _run(lambda: db.table("athlete_profiles")
+                              .select("*")
+                              .eq("user_id", user_id)
+                              .execute())
+    return r.data[0] if r.data else None
+
+
+async def save_athlete_profile(user_id: str, fields: dict) -> dict:
+    from datetime import datetime, timezone
+    payload = {**fields, "user_id": user_id,
+               "updated_at": datetime.now(timezone.utc).isoformat()}
+    r = await _run(lambda: db.table("athlete_profiles")
+                              .upsert(payload, on_conflict="user_id")
+                              .execute())
+    return r.data[0] if r.data else payload
+
+
+# ── Coach: chat transcript ────────────────────────────────────────────
+
+async def get_coach_messages(user_id: str, limit: int = 200) -> list[dict]:
+    r = await _run(lambda: db.table("coach_messages")
+                              .select("*")
+                              .eq("user_id", user_id)
+                              .order("created_at")
+                              .limit(limit)
+                              .execute())
+    return r.data or []
+
+
+async def save_coach_message(
+    user_id: str, role: str, text: str,
+    message_type: str = "plain", payload: Optional[dict] = None,
+) -> dict:
+    r = await _run(lambda: db.table("coach_messages").insert({
+        "user_id":      user_id,
+        "role":         role,
+        "text":         text,
+        "message_type": message_type,
+        "payload":      payload or {},
+    }).execute())
+    return r.data[0] if r.data else {}
+
+
+# ── Coach: subjective feedback + check-in queue ──────────────────────
+
+async def set_ride_feedback(ride_id: str, feedback: str):
+    await _run(lambda: db.table("rides")
+                          .update({"feedback": feedback})
+                          .eq("id", ride_id)
+                          .execute())
+
+
+async def set_run_feedback(run_id: str, feedback: str):
+    await _run(lambda: db.table("runs")
+                          .update({"feedback": feedback})
+                          .eq("id", run_id)
+                          .execute())
+
+
+async def get_rides_needing_checkin(user_id: str, since: Optional[str] = None, limit: int = 5) -> list[dict]:
+    """`since` (an ISO timestamp, typically athlete_profiles.onboarded_at) excludes the
+    pre-existing ride backlog from before the coach relationship started."""
+    def _q():
+        q = (db.table("rides").select(_RIDE_COLS).eq("user_id", user_id)
+               .eq("completed", True).is_("feedback", "null").order("created_at").limit(limit))
+        if since:
+            q = q.gte("created_at", since)
+        return q.execute()
+    r = await _run(_q)
+    return r.data or []
+
+
+async def get_runs_needing_checkin(user_id: str, since: Optional[str] = None, limit: int = 5) -> list[dict]:
+    def _q():
+        q = (db.table("runs").select(_RUN_COLS).eq("user_id", user_id)
+               .is_("feedback", "null").order("created_at").limit(limit))
+        if since:
+            q = q.gte("created_at", since)
+        return q.execute()
+    r = await _run(_q)
+    return r.data or []

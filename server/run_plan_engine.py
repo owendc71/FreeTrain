@@ -100,13 +100,16 @@ def generate_run_plan(
 
 def compute_run_adaptation(runs: list[dict], plan_entries: dict[str, dict]) -> tuple[float, str, str]:
     """
-    Two signals, mirroring compute_adaptation() for cycling:
+    Three signals, mirroring compute_adaptation() for cycling:
       1. Adherence — did the runner hit their planned distance on planned
          days over the last ~12 planned days?
       2. Load ramp — total mileage the last 7 days vs. the weekly average
          of the previous 3 weeks. Too fast a ramp is the #1 driver of
          running injury, so it's weighted even more heavily than on the
          bike side.
+      3. Subjective feedback – the runner's own "too easy / just right / too
+         hard" rating on the same planned dates used for signal 1, from the
+         coach chat's post-run check-in.
 
     Returns:
         factor  – target-distance/duration multiplier (-0.15 … +0.10)
@@ -178,6 +181,22 @@ def compute_run_adaptation(runs: list[dict], plan_entries: dict[str, dict]) -> t
         elif ramp < 0.60 and avg >= 0.80:
             factor += 0.03
             note += " Recent mileage has been light, so there's room to build."
+
+    # ── Signal 3: subjective feedback nudge ─────────────────────────────
+    fb_nudges = {"too_easy": 0.04, "just_right": 0.0, "too_hard": -0.06}
+    fb_by_date: dict[str, str] = {}
+    for r in runs:
+        d = _rdate(r)
+        if d and r.get("feedback"):
+            fb_by_date[d.isoformat()] = r["feedback"]   # last one wins if same-day dupes
+    fb_values = [fb_by_date[ds] for ds, _ in recent if ds in fb_by_date]
+    if fb_values:
+        fb_delta = sum(fb_nudges.get(f, 0.0) for f in fb_values) / len(fb_values)
+        if abs(fb_delta) >= 0.01:
+            factor += fb_delta
+            note += (" You've told me recent runs felt easy, so upcoming volume is nudged up a bit more."
+                      if fb_delta > 0 else
+                      " You've flagged recent runs as tough, so upcoming volume is eased back further.")
 
     factor = max(-0.15, min(0.10, factor))
     status = ("adjusted_up" if factor > 0.02

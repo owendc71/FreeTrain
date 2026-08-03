@@ -1,9 +1,9 @@
 'use strict';
 
 /* ═══════════════════════════════════════════════════════════════════
-   Run tab – career run stats, recent runs list, and the run plan
-   generator modal (mirrors PlanGenerator in planner.js, but targets
-   mileage instead of power since runs are Strava-import-only).
+   Run tab – career run stats and the recent runs list. Runs are
+   Strava-import-only (no local execution). Run plan creation now
+   happens via the coach chat on the Plan tab (see coach.js), not here.
 ═══════════════════════════════════════════════════════════════════ */
 
 const M_PER_MILE = 1609.34;
@@ -127,91 +127,4 @@ class RunTab {
   }
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   Run Plan Generator – modal popup (mirrors PlanGenerator)
-═══════════════════════════════════════════════════════════════════ */
-
-class RunPlanGenerator {
-  constructor() {
-    this._bindPills('rpg-level');
-    this._bindPills('rpg-days');
-    this._bindGenerate();
-    this._bindClear();
-  }
-
-  showInsights({ status, message }) {
-    const banner = document.getElementById('rpg-insights-banner');
-    const dot    = document.getElementById('run-insights-dot');
-    const label  = document.getElementById('run-insights-status-label');
-    const msg    = document.getElementById('run-insights-message');
-    if (!banner) return;
-
-    const labels = {
-      on_track:      'On Track',
-      adjusted_up:   'Mileage Increased',
-      adjusted_down: 'Volume Reduced',
-    };
-
-    dot.className     = `pg-insights-dot ${status}`;
-    label.textContent = labels[status] || 'Plan Updated';
-    msg.textContent   = ' — ' + message;
-    banner.style.display = 'flex';
-  }
-
-  _open()  { const o = document.getElementById('rpg-overlay'); if (o) { o.style.display = 'flex'; document.body.style.overflow = 'hidden'; } }
-  _close() { const o = document.getElementById('rpg-overlay'); if (o) { o.style.display = 'none';  document.body.style.overflow = ''; } }
-
-  _bindPills(groupId) {
-    const group = document.getElementById(groupId);
-    if (!group) return;
-    group.querySelectorAll('.pg-pill').forEach(btn => {
-      btn.addEventListener('click', () => {
-        group.querySelectorAll('.pg-pill').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-      });
-    });
-  }
-
-  _getVal(groupId) {
-    return document.getElementById(groupId)
-      ?.querySelector('.pg-pill.active')
-      ?.dataset.val ?? null;
-  }
-
-  _bindGenerate() {
-    document.getElementById('rpg-generate-btn')?.addEventListener('click', () => {
-      const profile = {
-        goal:           document.getElementById('rpg-goal')?.value ?? 'base_mileage',
-        level:          this._getVal('rpg-level') ?? 'intermediate',
-        days_per_week:  parseInt(this._getVal('rpg-days') ?? '4', 10),
-        weekly_miles:   parseFloat(document.getElementById('rpg-miles')?.value || '15'),
-        notes:          document.getElementById('rpg-notes')?.value ?? '',
-      };
-
-      const btn = document.getElementById('rpg-generate-btn');
-      btn.disabled    = true;
-      btn.textContent = 'Generating…';
-
-      window.sendWS({ action: 'generate_run_plan', profile });
-
-      setTimeout(() => {
-        btn.disabled    = false;
-        btn.textContent = 'Generate 6-Week Plan';
-        this._close();
-      }, 2500);
-    });
-  }
-
-  _bindClear() {
-    document.getElementById('rpg-clear-btn')?.addEventListener('click', () => {
-      if (!confirm('Remove all scheduled runs from the calendar?')) return;
-      window.sendWS({ action: 'clear_run_plan' });
-      const banner = document.getElementById('rpg-insights-banner');
-      if (banner) banner.style.display = 'none';
-      this._close();
-    });
-  }
-}
-
-window.RunTab           = RunTab;
-window.RunPlanGenerator = RunPlanGenerator;
+window.RunTab = RunTab;

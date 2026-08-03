@@ -339,13 +339,16 @@ def compute_adaptation(rides: list[dict]) -> tuple[float, str, str]:
     """
     Analyse recent training and decide how to adjust upcoming workouts.
 
-    Two signals:
+    Three signals:
       1. Adherence – completion rate and intensity of the last 5 structured
          (in-app) rides. Imported Strava rides are excluded here because
          they have no target to adhere to.
       2. Load ramp – total TSS of the last 7 days (all rides, including
          Strava imports) vs. the weekly average of the previous 3 weeks.
          Ramping too fast eases the plan; a light week nudges it up.
+      3. Subjective feedback – the rider's own "too easy / just right / too
+         hard" rating on the same `recent` rides used for signal 1, from the
+         coach chat's post-ride check-in.
 
     Returns:
         factor  – power_pct adjustment multiplier (-0.15 … +0.10)
@@ -418,6 +421,17 @@ def compute_adaptation(rides: list[dict]) -> tuple[float, str, str]:
         elif ramp < 0.60 and avg >= 0.82:
             factor += 0.03
             note += " Recent load has been light, so there's room to push."
+
+    # ── Signal 3: subjective feedback nudge ─────────────────────────────
+    fb_nudges = {"too_easy": 0.04, "just_right": 0.0, "too_hard": -0.06}
+    fb_values = [r.get("feedback") for r in recent if r.get("feedback")]
+    if fb_values:
+        fb_delta = sum(fb_nudges.get(f, 0.0) for f in fb_values) / len(fb_values)
+        if abs(fb_delta) >= 0.01:
+            factor += fb_delta
+            note += (" You've told me recent sessions felt easy, so intensity is nudged up a bit more."
+                      if fb_delta > 0 else
+                      " You've flagged recent sessions as tough, so intensity is eased back further.")
 
     factor = max(-0.15, min(0.10, factor))
     status = ("adjusted_up" if factor > 0.02

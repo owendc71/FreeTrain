@@ -87,6 +87,11 @@ function handleMessage(msg) {
         runs: msg.runs || [], runPlan: state.runPlan,
       });
       if (window._runTab) window._runTab.update({ runs: msg.runs || [] });
+      if (window._coach) window._coach.mount({ profile: msg.profile, messages: msg.coach_messages || [] });
+      break;
+
+    case 'coach_message':
+      if (window._coach) window._coach.appendMessage(msg.message);
       break;
 
     case 'workouts_updated':
@@ -145,13 +150,8 @@ function handleMessage(msg) {
       }
       break;
 
-    case 'plan_cleared':
-      toast('Generated plan cleared.');
-      break;
-
-    case 'adaptation_feedback':
-      if (window._planGen) window._planGen.showInsights(msg);
-      break;
+    // Adaptation results now arrive as coach chat bubbles (see 'coach_message'
+    // above) instead of a separate insights banner — no handler needed here.
 
     case 'runs_updated':
       if (window._runTab) window._runTab.update({ runs: msg.runs || [] });
@@ -167,14 +167,6 @@ function handleMessage(msg) {
 
     case 'run_plan_generated':
       toast(msg.message || 'Run plan created!');
-      break;
-
-    case 'run_plan_cleared':
-      toast('Generated run plan cleared.');
-      break;
-
-    case 'run_adaptation_feedback':
-      if (window._runPlanGen) window._runPlanGen.showInsights(msg);
       break;
 
     case 'strava_status':
@@ -773,22 +765,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Init creator and planner
+  // Init creator, planner, dashboard, run tab, coach chat
   window._creator   = new WorkoutCreator();
   window._planner   = new CalendarPlanner();
-  window._planGen   = new PlanGenerator();
   window._dashboard = new TrainingDashboard();
-  window._runTab     = new RunTab();
-  window._runPlanGen = new RunPlanGenerator();
-
-  // Wire plan generator open button here so it works even if PlanGenerator
-  // constructor has a partial failure earlier in the chain.
-  // Open/close for plan generator modal — handled via onclick in HTML.
-  // These globals let PlanGenerator.js call close programmatically (e.g. after generate).
-  window._pgClose = () => {
-    const o = document.getElementById('pg-overlay');
-    if (o) { o.style.display = 'none'; document.body.style.overflow = ''; }
-  };
+  window._runTab    = new RunTab();
+  window._coach     = new CoachChat();
 
   // Today's plan banner → load that workout into the Ride tab
   document.getElementById('today-plan-load').addEventListener('click', () => {

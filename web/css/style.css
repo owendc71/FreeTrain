@@ -1274,110 +1274,103 @@ input::placeholder { color: var(--text-3); }
   box-shadow: var(--shadow2);
 }
 
-/* ─── Plan Generator Modal ───────────────────────────────────────── */
-.pg-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.28);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 450;
-  padding: 16px;
-}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-.pg-card {
-  background: var(--glass-hi);
+/* ─── Coach chat (Plan tab) ──────────────────────────────────────── */
+.coach-layout {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 20px;
+  align-items: start;
+}
+@media (max-width: 900px) { .coach-layout { grid-template-columns: 1fr; } }
+
+.coach-panel {
+  background: var(--glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--gb);
-  border-radius: 16px;
-  width: min(500px, 100%);
-  box-shadow: var(--shadow2);
+  border-radius: var(--r);
   display: flex;
   flex-direction: column;
+  box-shadow: var(--shadow);
+  height: 600px;
+  max-height: 75vh;
   overflow: hidden;
-  max-height: 92vh;
 }
 
-.pg-card-header {
+.coach-panel-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 18px 20px 16px;
+  padding: 14px 16px;
   border-bottom: 1px solid var(--gb);
   flex-shrink: 0;
 }
-
-.pg-card-title {
+.coach-panel-title {
+  font-size: 14px;
   font-weight: 700;
-  font-size: 15px;
   color: var(--text);
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 8px;
 }
+.coach-panel-title svg { color: var(--blue); }
 
-.pg-close {
+.coach-restart-btn {
   background: none;
   border: none;
-  cursor: pointer;
   color: var(--text-3);
-  padding: 5px;
-  border-radius: 7px;
-  display: flex;
-  align-items: center;
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
   transition: color .15s, background .15s;
-  line-height: 1;
 }
-.pg-close:hover { color: var(--text); background: var(--gb); }
+.coach-restart-btn:hover { color: var(--text-2); background: var(--gb); }
 
-.pg-card-body {
-  padding: 20px 20px 4px;
+.coach-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  overflow-y: auto;
-}
-
-.pg-card-body textarea {
-  width: 100%;
-  min-height: 58px;
-  resize: vertical;
-  font-size: 13px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid var(--gb);
-  background: var(--glass);
-  color: var(--text);
-  font-family: inherit;
-  line-height: 1.5;
-  box-sizing: border-box;
-}
-.pg-card-body textarea:focus {
-  outline: none;
-  border-color: var(--blue);
-  box-shadow: 0 0 0 3px var(--blue-glow);
-}
-
-.pg-card-footer {
-  display: flex;
-  align-items: center;
   gap: 10px;
-  padding: 16px 20px 18px;
-  border-top: 1px solid var(--gb);
-  flex-shrink: 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--gb) transparent;
 }
 
-/* Pill selectors */
-.pg-pills {
+.coach-bubble {
+  max-width: 82%;
+  padding: 9px 13px;
+  border-radius: 14px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.coach-bubble.coach {
+  align-self: flex-start;
+  background: var(--blue-bg);
+  color: var(--text);
+  border: 1px solid rgba(22,163,74,0.18);
+  border-bottom-left-radius: 4px;
+}
+.coach-bubble.user {
+  align-self: flex-end;
+  background: rgba(0,0,0,0.05);
+  color: var(--text);
+  border: 1px solid var(--gb);
+  border-bottom-right-radius: 4px;
+}
+
+.coach-quick-replies {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-top: 2px;
+  padding: 0 16px 12px;
+  flex-shrink: 0;
 }
-
-.pg-pill {
+.coach-quick-reply-btn {
   padding: 6px 15px;
   border-radius: 20px;
   border: 1.5px solid var(--gb);
@@ -1385,61 +1378,23 @@ input::placeholder { color: var(--text-3); }
   font-family: inherit;
   font-size: 13px;
   font-weight: 500;
-  color: var(--text-2);
+  color: var(--blue-dim);
   cursor: pointer;
-  transition: background .13s, color .13s, border-color .13s, box-shadow .13s;
-  line-height: 1.3;
+  transition: background .13s, color .13s, border-color .13s;
 }
-.pg-pill:hover {
+.coach-quick-reply-btn:hover {
   border-color: var(--blue);
-  color: var(--blue);
   background: var(--blue-bg);
-}
-.pg-pill.active {
-  background: var(--blue-bg);
-  border-color: var(--blue);
   color: var(--blue);
-  font-weight: 650;
-  box-shadow: 0 0 0 1px var(--blue);
 }
 
-.pg-sub-hint {
-  font-size: 12px;
-  color: var(--text-3);
-  margin: 5px 0 0;
-}
-
-.pg-clear-btn { color: var(--danger) !important; }
-.pg-clear-btn:hover { background: rgba(239,68,68,.07) !important; border-color: var(--danger) !important; }
-
-/* Adaptive insights banner (below calendar) */
-.pg-insights-banner {
+.coach-input-row {
   display: flex;
-  align-items: center;
-  gap: 9px;
-  margin-top: 14px;
-  padding: 11px 14px;
-  background: var(--blue-bg);
-  border: 1px solid rgba(22,163,74,0.22);
-  border-radius: 10px;
-  font-size: 12.5px;
-  color: var(--text-2);
-  line-height: 1.5;
-}
-
-.pg-insights-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--gb);
   flex-shrink: 0;
-  background: var(--blue);
 }
-.pg-insights-dot.adjusted_down { background: #f97316; }
-.pg-insights-dot.adjusted_up   { background: var(--blue); }
-.pg-insights-dot.on_track      { background: var(--blue); }
+.coach-input-row input { flex: 1; width: auto; }
 
-.pg-insights-banner strong {
-  color: var(--text);
-  white-space: nowrap;
-}
-.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.coach-cal-col .planner-header { padding-top: 0; }

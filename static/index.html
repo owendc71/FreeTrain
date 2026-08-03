@@ -17,10 +17,10 @@
 
   <nav class="tab-nav">
     <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+    <button class="tab-btn"        data-tab="plan">Plan</button>
     <button class="tab-btn"        data-tab="run">Run</button>
     <button class="tab-btn"        data-tab="ride">Ride</button>
     <button class="tab-btn"        data-tab="create">Create</button>
-    <button class="tab-btn"        data-tab="plan">Plan</button>
     <button class="tab-btn"        data-tab="devices">Devices</button>
   </nav>
 
@@ -184,14 +184,75 @@
 
   </section>
 
+  <!-- ════════════════════════════ PLAN TAB ════════════════════════════ -->
+  <section id="tab-plan" class="tab-content">
+
+    <div class="coach-layout">
+
+      <!-- Coach chat -->
+      <div class="coach-col">
+        <div class="coach-panel" id="coach-panel">
+          <div class="coach-panel-header">
+            <span class="coach-panel-title">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              Coach
+            </span>
+            <button class="coach-restart-btn" id="coach-restart-btn">Redo my profile</button>
+          </div>
+          <div class="coach-messages" id="coach-messages"></div>
+          <div class="coach-quick-replies" id="coach-quick-replies"></div>
+          <div class="coach-input-row" id="coach-input-row" style="display:none">
+            <input type="text" id="coach-text-input" placeholder="Type here…">
+            <button class="btn btn-start btn-sm" id="coach-text-send">Send</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Calendar -->
+      <div class="cal-col coach-cal-col">
+        <div class="planner-header">
+          <button class="btn btn-adj" id="cal-prev">‹</button>
+          <h2 id="cal-month-label"></h2>
+          <button class="btn btn-adj" id="cal-next">›</button>
+          <button class="btn btn-adj" id="cal-today-btn">Today</button>
+        </div>
+
+        <div class="cal-weekday-row">
+          <div>Sun</div><div>Mon</div><div>Tue</div>
+          <div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+        </div>
+
+        <div class="calendar-grid" id="calendar-grid"></div>
+      </div>
+
+    </div>
+
+    <!-- Day planning modal -->
+    <div class="day-modal-overlay" id="day-modal" style="display:none">
+      <div class="day-modal-card">
+        <h3 id="day-modal-title"></h3>
+        <div class="form-group">
+          <label>Workout</label>
+          <select id="day-workout-select">
+            <option value="">— Rest Day —</option>
+          </select>
+        </div>
+        <div class="day-modal-actions">
+          <button class="btn btn-start" id="day-ride-btn" style="display:none">▶ Ride Now</button>
+          <button class="btn btn-start" id="day-save-btn">Save</button>
+          <button class="btn btn-adj"   id="day-cancel-btn">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
   <!-- ═══════════════════════════ RUN TAB ═══════════════════════════ -->
   <section id="tab-run" class="tab-content">
 
     <div class="history-header">
       <h2>Runs</h2>
       <span class="history-count" id="run-count"></span>
-      <button class="btn btn-start btn-sm run-plan-btn" id="open-run-plan-generator" style="margin-left:auto"
-        onclick="document.getElementById('rpg-overlay').style.display='flex';document.body.style.overflow='hidden'">+ Create Run Plan</button>
     </div>
 
     <!-- Career totals -->
@@ -212,13 +273,6 @@
         <span class="hs-value" id="rs-time">0h</span>
         <span class="hs-label">Total Time</span>
       </div>
-    </div>
-
-    <!-- Adaptive run-plan insights banner -->
-    <div class="pg-insights-banner" id="rpg-insights-banner" style="display:none">
-      <span class="pg-insights-dot" id="run-insights-dot"></span>
-      <strong id="run-insights-status-label"></strong>
-      <span id="run-insights-message"></span>
     </div>
 
     <div class="scan-hint" id="run-strava-hint" style="margin-top:14px">
@@ -328,52 +382,6 @@
         <button class="btn btn-adj" data-offset="-10" disabled>−10W</button>
         <span class="adj-label" id="adj-label">±0W</span>
         <button class="btn btn-adj" data-offset="10" disabled>+10W</button>
-      </div>
-    </div>
-
-  </section>
-
-  <!-- ════════════════════════════ PLAN TAB ════════════════════════════ -->
-  <section id="tab-plan" class="tab-content">
-
-    <div class="planner-header">
-      <button class="btn btn-adj" id="cal-prev">‹</button>
-      <h2 id="cal-month-label"></h2>
-      <button class="btn btn-adj" id="cal-next">›</button>
-      <button class="btn btn-adj" id="cal-today-btn">Today</button>
-      <button class="btn btn-start btn-sm" id="open-plan-generator" style="margin-left:auto"
-        onclick="document.getElementById('pg-overlay').style.display='flex';document.body.style.overflow='hidden'">+ Create Plan</button>
-    </div>
-
-    <div class="cal-weekday-row">
-      <div>Sun</div><div>Mon</div><div>Tue</div>
-      <div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
-    </div>
-
-    <div class="calendar-grid" id="calendar-grid"></div>
-
-    <!-- Adaptive insights banner (appears after ride saves) -->
-    <div class="pg-insights-banner" id="pg-insights-banner" style="display:none">
-      <span class="pg-insights-dot" id="insights-dot"></span>
-      <strong id="insights-status-label"></strong>
-      <span id="insights-message"></span>
-    </div>
-
-    <!-- Day planning modal -->
-    <div class="day-modal-overlay" id="day-modal" style="display:none">
-      <div class="day-modal-card">
-        <h3 id="day-modal-title"></h3>
-        <div class="form-group">
-          <label>Workout</label>
-          <select id="day-workout-select">
-            <option value="">— Rest Day —</option>
-          </select>
-        </div>
-        <div class="day-modal-actions">
-          <button class="btn btn-start" id="day-ride-btn" style="display:none">▶ Ride Now</button>
-          <button class="btn btn-start" id="day-save-btn">Save</button>
-          <button class="btn btn-adj"   id="day-cancel-btn">Cancel</button>
-        </div>
       </div>
     </div>
 
@@ -522,161 +530,6 @@
 
 <div class="toast" id="toast"></div>
 
-<!-- ══════════════════════ PLAN GENERATOR MODAL ═══════════════════ -->
-<div class="pg-overlay" id="pg-overlay" style="display:none"
-  onclick="if(event.target===this){this.style.display='none';document.body.style.overflow='';}">
-  <div class="pg-card">
-
-    <div class="pg-card-header">
-      <span class="pg-card-title">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--blue)"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-        Create Training Plan
-      </span>
-      <button class="pg-close" id="pg-close" aria-label="Close"
-        onclick="document.getElementById('pg-overlay').style.display='none';document.body.style.overflow=''">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
-    </div>
-
-    <div class="pg-card-body">
-
-      <div class="form-group">
-        <label>Training Goal</label>
-        <select id="pg-goal">
-          <option value="base_fitness">Base Fitness – Build your aerobic foundation</option>
-          <option value="build_fitness">Build Fitness – Raise FTP with structured intensity</option>
-          <option value="century">Century / Gran Fondo – Volume and endurance prep</option>
-          <option value="race_prep">Race Prep – Full periodisation with VO2 work</option>
-        </select>
-      </div>
-
-      <div class="form-group">
-        <label>Experience Level</label>
-        <div class="pg-pills" id="pg-level">
-          <button class="pg-pill" data-val="beginner">Beginner</button>
-          <button class="pg-pill active" data-val="intermediate">Intermediate</button>
-          <button class="pg-pill" data-val="advanced">Advanced</button>
-        </div>
-      </div>
-
-      <div class="form-group">
-        <label>Days per Week</label>
-        <div class="pg-pills" id="pg-days">
-          <button class="pg-pill" data-val="3">3</button>
-          <button class="pg-pill active" data-val="4">4</button>
-          <button class="pg-pill" data-val="5">5</button>
-          <button class="pg-pill" data-val="6">6</button>
-          <button class="pg-pill" data-val="7">7</button>
-        </div>
-      </div>
-
-      <div class="form-group">
-        <label>Weekly Training Time</label>
-        <div class="pg-pills" id="pg-hours">
-          <button class="pg-pill" data-val="3">3 hrs</button>
-          <button class="pg-pill active" data-val="5">5 hrs</button>
-          <button class="pg-pill" data-val="7">7 hrs</button>
-          <button class="pg-pill" data-val="10">10 hrs</button>
-        </div>
-        <p class="pg-sub-hint" id="pg-session-hint">≈ 75 min per session</p>
-      </div>
-
-      <div class="form-group row">
-        <label>Your FTP</label>
-        <input type="number" id="pg-ftp" value="250" min="50" max="700" step="5" style="width:80px">
-        <span class="unit">W</span>
-        <span class="hint" style="margin-left:6px">sets power targets for your workouts</span>
-      </div>
-
-      <div class="form-group">
-        <label>Training Background <span class="hint">(optional)</span></label>
-        <textarea id="pg-notes" rows="2" placeholder="e.g. Returning after a break. 100-mile sportive in August. Currently at ~6 hrs/week."></textarea>
-      </div>
-
-    </div>
-
-    <div class="pg-card-footer">
-      <button class="btn btn-start" id="pg-generate-btn">Generate 6-Week Plan</button>
-      <button class="btn btn-adj"   id="pg-cancel-btn"
-        onclick="document.getElementById('pg-overlay').style.display='none';document.body.style.overflow=''">Cancel</button>
-      <button class="btn btn-adj pg-clear-btn" id="pg-clear-btn" style="margin-left:auto">Clear Plan</button>
-    </div>
-
-  </div>
-</div>
-
-<!-- ══════════════════════ RUN PLAN GENERATOR MODAL ═══════════════ -->
-<div class="pg-overlay" id="rpg-overlay" style="display:none"
-  onclick="if(event.target===this){this.style.display='none';document.body.style.overflow='';}">
-  <div class="pg-card">
-
-    <div class="pg-card-header">
-      <span class="pg-card-title">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--run)"><path d="M13 4l3 3-3 9-6 6"/><circle cx="17" cy="5" r="2"/><path d="M9 15l-3 3H2"/><path d="M13 10l-4-1-3 3"/></svg>
-        Create Run Plan
-      </span>
-      <button class="pg-close" id="rpg-close" aria-label="Close"
-        onclick="document.getElementById('rpg-overlay').style.display='none';document.body.style.overflow=''">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
-    </div>
-
-    <div class="pg-card-body">
-
-      <div class="form-group">
-        <label>Training Goal</label>
-        <select id="rpg-goal">
-          <option value="base_mileage">Base Mileage – Build your aerobic foundation</option>
-          <option value="five_k">5K – Speed and turnover</option>
-          <option value="ten_k">10K – Threshold and endurance</option>
-          <option value="half_marathon">Half Marathon – Volume with race-pace work</option>
-          <option value="marathon">Marathon – Full periodisation, long-run focus</option>
-        </select>
-      </div>
-
-      <div class="form-group">
-        <label>Experience Level</label>
-        <div class="pg-pills" id="rpg-level">
-          <button class="pg-pill" data-val="beginner">Beginner</button>
-          <button class="pg-pill active" data-val="intermediate">Intermediate</button>
-          <button class="pg-pill" data-val="advanced">Advanced</button>
-        </div>
-      </div>
-
-      <div class="form-group">
-        <label>Days per Week</label>
-        <div class="pg-pills" id="rpg-days">
-          <button class="pg-pill" data-val="3">3</button>
-          <button class="pg-pill active" data-val="4">4</button>
-          <button class="pg-pill" data-val="5">5</button>
-          <button class="pg-pill" data-val="6">6</button>
-        </div>
-      </div>
-
-      <div class="form-group row">
-        <label>Weekly Mileage</label>
-        <input type="number" id="rpg-miles" value="15" min="5" max="100" step="1" style="width:80px">
-        <span class="unit">mi</span>
-        <span class="hint" style="margin-left:6px">your target weekly total</span>
-      </div>
-
-      <div class="form-group">
-        <label>Training Background <span class="hint">(optional)</span></label>
-        <textarea id="rpg-notes" rows="2" placeholder="e.g. Currently running ~10mi/week. Building toward a fall half marathon."></textarea>
-      </div>
-
-    </div>
-
-    <div class="pg-card-footer">
-      <button class="btn btn-run" id="rpg-generate-btn">Generate 6-Week Plan</button>
-      <button class="btn btn-adj"   id="rpg-cancel-btn"
-        onclick="document.getElementById('rpg-overlay').style.display='none';document.body.style.overflow=''">Cancel</button>
-      <button class="btn btn-adj pg-clear-btn" id="rpg-clear-btn" style="margin-left:auto">Clear Plan</button>
-    </div>
-
-  </div>
-</div>
-
 <!-- ══════════════════════ AUTH OVERLAY ══════════════════════════ -->
 <div id="auth-overlay" class="auth-overlay" style="display:none">
   <div class="auth-card">
@@ -733,6 +586,7 @@
 <script src="/js/planner.js"></script>
 <script src="/js/run.js"></script>
 <script src="/js/dashboard.js"></script>
+<script src="/js/coach.js"></script>
 <script src="/js/app.js"></script>
 <script src="/js/auth.js"></script>
 </body>
