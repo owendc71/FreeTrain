@@ -11,6 +11,7 @@ class CalendarPlanner {
     this._runPlan   = {};
     this._runs      = [];
     this._selDate  = null;
+    this._dayChart = null;
 
     this._bindEvents();
     this.render();
@@ -159,6 +160,37 @@ class CalendarPlanner {
     rideBtn.style.display = showRide ? 'inline-flex' : 'none';
 
     modal.style.display = 'flex';
+    this._updateDayDetails();
+  }
+
+  // Renders the interval chart + summary line for whatever workout is
+  // currently selected in the day-modal — the assigned workout on open,
+  // or whatever the user is browsing to in the dropdown.
+  _updateDayDetails() {
+    const wid    = document.getElementById('day-workout-select').value;
+    const w      = this._workouts.find(x => x.id === wid);
+    const canvas = document.getElementById('day-workout-canvas');
+    const ph     = document.getElementById('day-chart-placeholder');
+    const meta   = document.getElementById('day-workout-meta');
+    if (!canvas) return;
+
+    if (!w) {
+      canvas.style.display = 'none';
+      if (ph)   ph.style.display = 'flex';
+      if (meta) meta.textContent = '';
+      return;
+    }
+
+    const ftpEl = document.getElementById('ftp-input');
+    const ftp   = (ftpEl && parseInt(ftpEl.value, 10)) || 250;
+
+    if (!this._dayChart) this._dayChart = new WorkoutChart(canvas, { ftp });
+    this._dayChart.setFTP(ftp);
+    this._dayChart.setIntervals(w.intervals);
+
+    canvas.style.display = 'block';
+    if (ph)   ph.style.display = 'none';
+    if (meta) meta.textContent = `${w.intervals.length} intervals  ·  ${fmtTime(w.total_duration)}`;
   }
 
   _closeModal() {
@@ -208,13 +240,15 @@ class CalendarPlanner {
     document.getElementById('day-cancel-btn').addEventListener('click', () => this._closeModal());
     document.getElementById('day-ride-btn').addEventListener('click',   () => this._rideNow());
 
-    // Show/hide "Ride Now" as user changes workout selection in the modal
+    // Show/hide "Ride Now" and refresh the details chart as the user
+    // browses workout options in the modal.
     document.getElementById('day-workout-select').addEventListener('change', () => {
       if (!this._selDate) return;
       const todayStr = _isoDate(new Date());
       const wid      = document.getElementById('day-workout-select').value;
       document.getElementById('day-ride-btn').style.display =
         this._selDate >= todayStr && wid ? 'inline-flex' : 'none';
+      this._updateDayDetails();
     });
 
     // Dismiss modal on backdrop click
