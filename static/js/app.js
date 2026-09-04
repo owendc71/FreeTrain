@@ -81,12 +81,16 @@ function handleMessage(msg) {
       if (window._planner) window._planner.update({
         plan: msg.plan, workouts: msg.workouts, rides: msg.rides || [],
         runPlan: state.runPlan, runs: msg.runs || [],
+        swimPlan: msg.swim_plan || {}, swims: msg.swims || [],
+        strengthPlan: msg.strength_plan || {}, strength: msg.strength_sessions || [],
       });
       if (window._dashboard) window._dashboard.update({
         rides: msg.rides || [], plan: state.plan,
         runs: msg.runs || [], runPlan: state.runPlan,
       });
       if (window._runTab) window._runTab.update({ runs: msg.runs || [] });
+      if (window._swimTab) window._swimTab.update({ swims: msg.swims || [] });
+      if (window._strengthTab) window._strengthTab.update({ sessions: msg.strength_sessions || [] });
       if (window._coach) window._coach.mount({ profile: msg.profile, messages: msg.coach_messages || [] });
       break;
 
@@ -161,6 +165,29 @@ function handleMessage(msg) {
       if (window._runTab) window._runTab.update({ runs: msg.runs || [] });
       if (window._planner) window._planner.update({ runs: msg.runs || [] });
       if (window._dashboard) window._dashboard.update({ runs: msg.runs || [] });
+      break;
+
+    case 'swims_updated':
+      if (window._swimTab) window._swimTab.update({ swims: msg.swims || [] });
+      if (window._planner) window._planner.update({ swims: msg.swims || [] });
+      break;
+
+    case 'swim_plan_updated':
+      if (window._planner) window._planner.update({ swimPlan: msg.swim_plan || {} });
+      break;
+
+    case 'strength_updated':
+      if (window._strengthTab) window._strengthTab.update({ sessions: msg.strength_sessions || [] });
+      if (window._planner) window._planner.update({ strength: msg.strength_sessions || [] });
+      break;
+
+    case 'strength_plan_updated':
+      if (window._planner) window._planner.update({ strengthPlan: msg.strength_plan || {} });
+      break;
+
+    case 'swim_plan_generated':
+    case 'strength_plan_generated':
+      toast(msg.message || 'Plan created!');
       break;
 
     case 'run_plan_updated':
@@ -774,6 +801,8 @@ document.addEventListener('DOMContentLoaded', () => {
   window._planner   = new CalendarPlanner();
   window._dashboard = new TrainingDashboard();
   window._runTab    = new RunTab();
+  window._swimTab     = new SwimTab();
+  window._strengthTab = new StrengthTab();
   window._coach     = new CoachChat();
 
   // Today's plan banner → load that workout into the Ride tab

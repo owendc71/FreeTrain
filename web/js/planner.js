@@ -10,6 +10,10 @@ class CalendarPlanner {
     this._rides    = [];
     this._runPlan   = {};
     this._runs      = [];
+    this._swimPlan     = {};
+    this._swims        = [];
+    this._strengthPlan = {};
+    this._strength     = [];
     this._selDate  = null;
     this._dayChart = null;
 
@@ -17,13 +21,19 @@ class CalendarPlanner {
     this.render();
   }
 
-  // Called from app.js whenever plan, workout list, ride, or run data changes.
-  update({ plan, workouts, rides, runPlan, runs } = {}) {
-    if (plan     != null) this._plan     = plan;
-    if (workouts != null) this._workouts = workouts;
-    if (rides    != null) this._rides    = rides;
-    if (runPlan  != null) this._runPlan  = runPlan;
-    if (runs     != null) this._runs     = runs;
+  // Called from app.js whenever plan, workout list, or any discipline's
+  // activity/plan data changes.
+  update({ plan, workouts, rides, runPlan, runs,
+           swimPlan, swims, strengthPlan, strength } = {}) {
+    if (plan         != null) this._plan         = plan;
+    if (workouts     != null) this._workouts     = workouts;
+    if (rides        != null) this._rides        = rides;
+    if (runPlan      != null) this._runPlan      = runPlan;
+    if (runs         != null) this._runs         = runs;
+    if (swimPlan     != null) this._swimPlan     = swimPlan;
+    if (swims        != null) this._swims        = swims;
+    if (strengthPlan != null) this._strengthPlan = strengthPlan;
+    if (strength     != null) this._strength     = strength;
     this.render();
     this._refreshTodayBanner();
   }
@@ -87,10 +97,38 @@ class CalendarPlanner {
         cell.appendChild(chip);
       }
 
-      // Completed ride/run dots
-      const ridesDone = this._rides.filter(r => r.date && r.date.startsWith(dateStr));
-      const runsDone  = this._runs.filter(r => r.date && r.date.startsWith(dateStr));
-      if (ridesDone.length || runsDone.length) {
+      // Planned swim chip (read-only — managed from the coach chat)
+      const swimEntry = this._swimPlan[dateStr];
+      if (swimEntry) {
+        const chip = document.createElement('div');
+        chip.className = 'cal-chip cal-chip-swim';
+        const label = (typeof SWIM_TYPE_LABELS !== 'undefined' && SWIM_TYPE_LABELS[swimEntry.swim_type]) || swimEntry.swim_type;
+        const dist  = swimEntry.target_distance_m
+          ? (swimEntry.target_distance_m >= 1000
+              ? `${(swimEntry.target_distance_m / 1000).toFixed(1)}km`
+              : `${Math.round(swimEntry.target_distance_m)}m`)
+          : null;
+        chip.textContent = `🏊 ${label}${dist ? ` · ${dist}` : ''}`;
+        cell.appendChild(chip);
+      }
+
+      // Planned strength chip
+      const strengthEntry = this._strengthPlan[dateStr];
+      if (strengthEntry) {
+        const chip = document.createElement('div');
+        chip.className = 'cal-chip cal-chip-strength';
+        const label = (typeof STRENGTH_FOCUS_LABELS !== 'undefined' && STRENGTH_FOCUS_LABELS[strengthEntry.focus]) || strengthEntry.focus;
+        const mins  = strengthEntry.target_duration_min ? ` · ${Math.round(strengthEntry.target_duration_min)}min` : '';
+        chip.textContent = `🏋 ${label}${mins}`;
+        cell.appendChild(chip);
+      }
+
+      // Completed activity dots
+      const ridesDone    = this._rides.filter(r => r.date && r.date.startsWith(dateStr));
+      const runsDone     = this._runs.filter(r => r.date && r.date.startsWith(dateStr));
+      const swimsDone    = this._swims.filter(s => s.date && s.date.startsWith(dateStr));
+      const strengthDone = this._strength.filter(s => s.date && s.date.startsWith(dateStr));
+      if (ridesDone.length || runsDone.length || swimsDone.length || strengthDone.length) {
         const dots = document.createElement('div');
         dots.className = 'cal-dots';
         ridesDone.slice(0, 3).forEach(r => {
@@ -105,6 +143,18 @@ class CalendarPlanner {
           const dot = document.createElement('span');
           dot.className = 'cal-dot run';
           dot.title = `Run: ${r.name || 'Run'}`;
+          dots.appendChild(dot);
+        });
+        swimsDone.slice(0, 2).forEach(s => {
+          const dot = document.createElement('span');
+          dot.className = 'cal-dot swim';
+          dot.title = `Swim: ${s.name || 'Swim'}`;
+          dots.appendChild(dot);
+        });
+        strengthDone.slice(0, 2).forEach(s => {
+          const dot = document.createElement('span');
+          dot.className = 'cal-dot strength';
+          dot.title = `Strength: ${s.name || 'Strength session'}`;
           dots.appendChild(dot);
         });
         cell.appendChild(dots);

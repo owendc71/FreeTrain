@@ -45,11 +45,25 @@ const SYSTEM_PROMPT = `You are the FreeTrain coach — a knowledgeable, encourag
 Never invent numbers about their training. The athlete's profile and a summary of recent activity are provided to you in <athlete_context>. For anything more detailed, call get_recent_activity. If a fact isn't in your context or in a tool result, say you don't know rather than guessing.
 
 ## Building plans
-When the athlete wants a training plan, gather what you need conversationally — discipline, goal, experience level, days per week, and either weekly hours (cycling) or weekly mileage (running) — then call create_cycling_plan or create_run_plan.
+FreeTrain supports four disciplines, each with its own plan and its own tool:
+- Cycling → create_cycling_plan (needs goal, level, days/week, weekly hours; FTP if known)
+- Running → create_run_plan (needs goal, level, days/week, weekly miles)
+- Swimming → create_swim_plan (needs goal, level, days/week, weekly metres)
+- Strength → create_strength_plan (needs goal, level, days/week, session length)
 
-These tools run FreeTrain's own periodized 6-week plan generator, which handles progressive overload and recovery weeks correctly. ALWAYS build plans by calling the tool. Never write a week-by-week plan out as text instead — a plan you type into chat does not exist in the athlete's calendar.
+Gather what you need conversationally, then call the matching tool. These tools run FreeTrain's own periodized plan generator, which handles progressive overload and recovery weeks correctly. ALWAYS build plans by calling the tool. Never write a week-by-week plan out as text instead — a plan you type into chat does not exist in the athlete's calendar.
+
+## Plan length
+Every plan tool takes a "weeks" parameter, 1 to 24. Choose it deliberately rather than defaulting:
+- If the athlete names a length ("give me 12 weeks"), use exactly that.
+- If they have a dated event, count the weeks between today (given in <athlete_context>) and that date, and use that so the plan's taper lands on the event.
+- Otherwise ask how long they want, or propose something sensible for the goal (8-12 weeks for a race build, 4-6 for general fitness) and say why.
+Plans longer than about 10 weeks reach peak volume partway through and then hold there with recovery weeks — that's intended, not a bug, so don't promise endless linear progression.
 
 Creating a plan REPLACES any existing plan for that discipline, so confirm with the athlete before calling the tool. Afterwards, briefly say what got scheduled.
+
+## Logging sessions
+Swims and strength sessions have no device integration, so the athlete logs them by telling you. When they mention having done one, call log_swim or log_strength to record it. Rides and runs arrive automatically from the app or Strava — never log those.
 
 Call save_profile whenever you learn something durable — goals, experience level, weekly availability, injuries, a target event and its date — so you still know it next session.
 
@@ -57,6 +71,16 @@ Call save_profile whenever you learn something durable — goals, experience lev
 - Honor the principles the plans are built on: progressive overload, recovery weeks, and no large jumps in weekly volume. If the athlete pushes for something reckless (doubling mileage, racing through an injury), say so plainly and offer a sane alternative.
 - Soreness is normal; pain is not. If the athlete describes pain, joint problems, chest symptoms, or anything that sounds like an injury, tell them to back off and see a qualified professional. You are a training coach, not a medical provider — do not diagnose.
 - For adjacent topics (nutrition, gear, recovery habits) give a brief practical answer and be honest about where your usefulness ends.`;
+
+// Shared by all four plan tools — the engines clamp to the same bounds.
+const WEEKS_PROP = {
+  type: 'integer',
+  minimum: 1,
+  maximum: 24,
+  description:
+    'How many weeks the plan should cover (1-24). Match the athlete\'s event date or ' +
+    'stated preference; ask if neither is known rather than silently defaulting.',
+};
 
 const TOOLS = [
   {
@@ -85,8 +109,9 @@ const TOOLS = [
           type: 'integer',
           description: 'Functional Threshold Power in watts, if known. Omit if unknown.',
         },
+        weeks: WEEKS_PROP,
       },
-      required: ['goal', 'level', 'days_per_week', 'weekly_hours'],
+      required: ['goal', 'level', 'days_per_week', 'weekly_hours', 'weeks'],
       additionalProperties: false,
     },
   },
@@ -110,21 +135,119 @@ const TOOLS = [
           type: 'number',
           description: 'Target weekly mileage to build toward.',
         },
+        weeks: WEEKS_PROP,
       },
-      required: ['goal', 'level', 'days_per_week', 'weekly_miles'],
+      required: ['goal', 'level', 'days_per_week', 'weekly_miles', 'weeks'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'create_swim_plan',
+    description:
+      "Generate and save a periodized swimming plan using FreeTrain's own swim-plan engine, " +
+      'replacing any existing swim plan. Writes real swims into the calendar. ' +
+      'Use this for any swimming plan request instead of writing a plan out as text.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        goal: {
+          type: 'string',
+          enum: ['base_fitness', 'technique', 'distance_event', 'race_prep', 'triathlon'],
+          description:
+            'base_fitness = general aerobic swim fitness; technique = stroke development; ' +
+            'distance_event = open-water/long-distance event; race_prep = pool racing; ' +
+            'triathlon = swim leg of a triathlon. The last three finish with a taper.',
+        },
+        level: { type: 'string', enum: ['beginner', 'intermediate', 'advanced'] },
+        days_per_week: { type: 'integer', minimum: 2, maximum: 6 },
+        weekly_meters: {
+          type: 'number',
+          description: 'Target weekly volume in METRES (not yards). e.g. 6000 for 6km/week.',
+        },
+        weeks: WEEKS_PROP,
+      },
+      required: ['goal', 'level', 'days_per_week', 'weekly_meters', 'weeks'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'create_strength_plan',
+    description:
+      "Generate and save a periodized strength-training plan using FreeTrain's own engine, " +
+      'replacing any existing strength plan. Schedules a rotating focus pattern ' +
+      '(upper/lower/full/core) with progressive session duration.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        goal: {
+          type: 'string',
+          enum: ['general_strength', 'hypertrophy', 'endurance_support', 'peak_strength', 'event_prep'],
+          description:
+            'general_strength = all-round; hypertrophy = muscle growth; ' +
+            'endurance_support = supplementary lifting for a cyclist/runner; ' +
+            'peak_strength and event_prep finish with a deload.',
+        },
+        level: { type: 'string', enum: ['beginner', 'intermediate', 'advanced'] },
+        days_per_week: { type: 'integer', minimum: 1, maximum: 5 },
+        session_mins: {
+          type: 'number',
+          description: 'Target length of a single session in minutes (e.g. 45).',
+        },
+        weeks: WEEKS_PROP,
+      },
+      required: ['goal', 'level', 'days_per_week', 'session_mins', 'weeks'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'log_swim',
+    description:
+      'Record a swim the athlete has completed. Swims have no device integration, so this is ' +
+      'the only way they get into the app. Only log what the athlete actually reports.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        date: { type: 'string', description: 'ISO date (YYYY-MM-DD). Defaults to today if omitted.' },
+        name: { type: 'string', description: 'Short label, e.g. "Masters session" or "Easy swim".' },
+        distance_m: { type: 'number', description: 'Distance in metres.' },
+        duration_min: { type: 'number', description: 'Time in the water, in minutes.' },
+        stroke: { type: 'string', enum: ['free', 'back', 'breast', 'fly', 'mixed', 'im'] },
+      },
+      required: ['distance_m'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'log_strength',
+    description:
+      'Record a strength session the athlete has completed. Only log what they actually report.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        date: { type: 'string', description: 'ISO date (YYYY-MM-DD). Defaults to today if omitted.' },
+        name: { type: 'string', description: 'Short label, e.g. "Gym — legs".' },
+        focus: { type: 'string', enum: ['upper', 'lower', 'full', 'core'] },
+        duration_min: { type: 'number', description: 'Session length in minutes.' },
+        perceived_effort: {
+          type: 'integer', minimum: 1, maximum: 10,
+          description: 'RPE 1-10, if the athlete mentioned how hard it felt. Omit otherwise.',
+        },
+        notes: { type: 'string', description: 'Anything notable they mentioned (lifts, PRs, niggles).' },
+      },
+      required: ['focus', 'duration_min'],
       additionalProperties: false,
     },
   },
   {
     name: 'get_recent_activity',
     description:
-      "Read the athlete's completed rides and/or runs, newest first, with distance, duration, " +
-      'power/pace, and any subjective feedback they gave. Use this before analysing training or ' +
-      'answering questions about how their training has actually been going.',
+      "Read the athlete's completed sessions in any discipline, newest first, with distance, " +
+      'duration, power/pace/RPE, and any subjective feedback they gave. Use this before ' +
+      'analysing training or answering questions about how their training has actually been going.',
     input_schema: {
       type: 'object',
       properties: {
-        kind: { type: 'string', enum: ['rides', 'runs', 'both'] },
+        kind: { type: 'string', enum: ['rides', 'runs', 'swims', 'strength', 'all'] },
         limit: { type: 'integer', minimum: 1, maximum: 30, description: 'How many of each to return. Default 10.' },
       },
       required: ['kind'],
@@ -150,6 +273,14 @@ const TOOLS = [
         run_style:  { type: 'string', enum: ['road', 'trail'] },
         run_days_per_week: { type: 'integer', minimum: 1, maximum: 7 },
         run_weekly_miles:  { type: 'number' },
+        swim_goal:  { type: 'string', enum: ['base_fitness', 'technique', 'distance_event', 'race_prep', 'triathlon'] },
+        swim_level: { type: 'string', enum: ['beginner', 'intermediate', 'advanced'] },
+        swim_days_per_week: { type: 'integer', minimum: 1, maximum: 7 },
+        swim_weekly_meters: { type: 'number' },
+        strength_goal:  { type: 'string', enum: ['general_strength', 'hypertrophy', 'endurance_support', 'peak_strength', 'event_prep'] },
+        strength_level: { type: 'string', enum: ['beginner', 'intermediate', 'advanced'] },
+        strength_days_per_week: { type: 'integer', minimum: 1, maximum: 7 },
+        strength_session_mins:  { type: 'number' },
         notes: {
           type: 'string',
           description: 'Free-form durable context: injuries, target events and dates, constraints, preferences.',

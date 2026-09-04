@@ -31,6 +31,10 @@ let _rides   = [];
 let _plan    = {};
 let _runs    = [];
 let _runPlan = {};
+let _swims        = [];
+let _swimPlan     = {};
+let _strength     = [];   // strength_sessions rows
+let _strengthPlan = {};
 let _profile = null;   // athlete_profiles row, or null before onboarding
 
 // sendWS is the universal message bus — routes to _handleAction in web mode.
@@ -53,6 +57,16 @@ function _syncDashboard() {
 function _syncRunViews() {
   if (window._planner) window._planner.update({ runPlan: _runPlan, runs: _runs });
   if (window._runTab)  window._runTab.update({ runs: _runs });
+}
+
+function _syncSwimViews() {
+  if (window._planner)  window._planner.update({ swimPlan: _swimPlan, swims: _swims });
+  if (window._swimTab)  window._swimTab.update({ swims: _swims });
+}
+
+function _syncStrengthViews() {
+  if (window._planner)      window._planner.update({ strengthPlan: _strengthPlan, strength: _strength });
+  if (window._strengthTab)  window._strengthTab.update({ sessions: _strength });
 }
 
 // ── Startup ───────────────────────────────────────────────────────
@@ -198,18 +212,28 @@ async function _runRunAdaptation({ postAsCoachMessage = false } = {}) {
 }
 
 async function _loadInitialData() {
-  const [workouts, rides, plan, runs, runPlan] = await Promise.all([
+  const [workouts, rides, plan, runs, runPlan,
+         swims, swimPlan, strength, strengthPlan] = await Promise.all([
     _fetchWorkouts(), _fetchRides(), _fetchPlan(), _fetchRuns(), _fetchRunPlan(),
+    _fetchSwims(), _fetchSwimPlan(), _fetchStrength(), _fetchStrengthPlan(),
   ]);
-  _rides   = rides;
-  _plan    = plan;
-  _runs    = runs;
-  _runPlan = runPlan;
+  _rides        = rides;
+  _plan         = plan;
+  _runs         = runs;
+  _runPlan      = runPlan;
+  _swims        = swims;
+  _swimPlan     = swimPlan;
+  _strength     = strength;
+  _strengthPlan = strengthPlan;
 
   updateWorkoutList(workouts);
   renderHistory(rides);
-  if (window._planner) window._planner.update({ plan, workouts, rides, runPlan, runs });
-  if (window._runTab)  window._runTab.update({ runs });
+  if (window._planner) window._planner.update({
+    plan, workouts, rides, runPlan, runs, swimPlan, swims, strengthPlan, strength,
+  });
+  if (window._runTab)      window._runTab.update({ runs });
+  if (window._swimTab)     window._swimTab.update({ swims });
+  if (window._strengthTab) window._strengthTab.update({ sessions: strength });
   _syncDashboard();
 
   // Show today's plan banner on ride tab
@@ -263,6 +287,166 @@ async function _fetchRunPlan() {
   const out = {};
   (data || []).forEach(e => { out[e.date] = e; });
   return out;
+}
+
+async function _fetchSwims() {
+  const { data } = await _sb.from('swims').select('*')
+    .eq('user_id', _userId).order('date', { ascending: false });
+  return data || [];
+}
+
+async function _fetchSwimPlan() {
+  const { data } = await _sb.from('swim_plan_entries').select('*').eq('user_id', _userId);
+  const out = {};
+  (data || []).forEach(e => { out[e.date] = e; });
+  return out;
+}
+
+async function _fetchStrength() {
+  const { data } = await _sb.from('strength_sessions').select('*')
+    .eq('user_id', _userId).order('date', { ascending: false });
+  return data || [];
+}
+
+async function _fetchStrengthPlan() {
+  const { data } = await _sb.from('strength_plan_entries').select('*').eq('user_id', _userId);
+  const out = {};
+  (data || []).forEach(e => { out[e.date] = e; });
+  return out;
+}
+
+// ── Swim / strength plan generation + logging ──────────────────────
+
+async function _generateSwimPlan(profile) {
+  const paces = _swims.map(s => s.avg_pace_sec_per_100m).filter(Boolean);
+  const avgPace = paces.length ? paces.reduce((a, b) => a + b, 0) / paces.length : 120.0;
+
+  const sessions = SwimPlanWebEngine.generateSwimPlan({
+    goal:             profile.goal,
+    level:            profile.level,
+    daysPerWeek:      profile.days_per_week,
+    weeklyTargetM:    profile.weekly_meters || 6000,
+    avgPaceSecPer100m: avgPace,
+    weeks:            profile.weeks,
+  });
+
+  await _sb.from('swim_plan_entries').delete().eq('user_id', _userId);
+  let count = 0;
+  for (const { date, entry } of sessions) {
+    await _sb.from('swim_plan_entries').upsert({
+      user_id:             _userId,
+      date,
+      swim_type:           entry.swim_type,
+      target_distance_m:   entry.target_distance_m,
+      target_duration_min: entry.target_duration_min,
+      description:         entry.description,
+    }, { onConflict: 'user_id,date' });
+    count++;
+  }
+
+  _swimPlan = await _fetchSwimPlan();
+  _syncSwimViews();
+  toast(`Swim plan created — ${count} swims scheduled.`);
+  return count;
+}
+
+async function _generateStrengthPlan(profile) {
+  const sessions = StrengthPlanWebEngine.generateStrengthPlan({
+    goal:        profile.goal,
+    level:       profile.level,
+    daysPerWeek: profile.days_per_week,
+    sessionMins: profile.session_mins || 45,
+    weeks:       profile.weeks,
+  });
+
+  await _sb.from('strength_plan_entries').delete().eq('user_id', _userId);
+  let count = 0;
+  for (const { date, entry } of sessions) {
+    await _sb.from('strength_plan_entries').upsert({
+      user_id:             _userId,
+      date,
+      focus:               entry.focus,
+      target_duration_min: entry.target_duration_min,
+      description:         entry.description,
+    }, { onConflict: 'user_id,date' });
+    count++;
+  }
+
+  _strengthPlan = await _fetchStrengthPlan();
+  _syncStrengthViews();
+  toast(`Strength plan created — ${count} sessions scheduled.`);
+  return count;
+}
+
+async function _logSwim(swim) {
+  const { data } = await _sb.from('swims').insert({ ...swim, user_id: _userId }).select().single();
+  _swims = await _fetchSwims();
+  _syncSwimViews();
+  _syncDashboard();
+  await _runSwimAdaptation({ postAsCoachMessage: true });
+  await _queueCheckinIfIdle();
+  return data;
+}
+
+async function _logStrength(session) {
+  const { data } = await _sb.from('strength_sessions').insert({ ...session, user_id: _userId }).select().single();
+  _strength = await _fetchStrength();
+  _syncStrengthViews();
+  _syncDashboard();
+  await _runStrengthAdaptation({ postAsCoachMessage: true });
+  await _queueCheckinIfIdle();
+  return data;
+}
+
+// ── Swim / strength adaptation (mirrors _runRunAdaptation) ─────────
+
+async function _runSwimAdaptation({ postAsCoachMessage = false } = {}) {
+  const result = SwimPlanWebEngine.computeSwimAdaptation(_swims, _swimPlan);
+  const today  = new Date().toISOString().slice(0, 10);
+  const upcoming = Object.entries(_swimPlan)
+    .filter(([ds, e]) => ds >= today && (e.target_distance_m || 0) > 0)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .slice(0, 3);
+
+  let adjusted = 0;
+  for (const [ds, entry] of upcoming) {
+    const next = SwimPlanWebEngine.applySwimAdaptation(entry, result.factor);
+    if (next.target_distance_m !== entry.target_distance_m) {
+      await _sb.from('swim_plan_entries').update({
+        target_distance_m:   next.target_distance_m,
+        target_duration_min: next.target_duration_min,
+      }).eq('user_id', _userId).eq('date', ds);
+      adjusted++;
+    }
+  }
+  if (adjusted) { _swimPlan = await _fetchSwimPlan(); _syncSwimViews(); }
+  if (upcoming.length && postAsCoachMessage) {
+    await _postCoachText(CoachEngineWeb.composeMessage('adaptation_result', result));
+  }
+}
+
+async function _runStrengthAdaptation({ postAsCoachMessage = false } = {}) {
+  const result = StrengthPlanWebEngine.computeStrengthAdaptation(_strength, _strengthPlan);
+  const today  = new Date().toISOString().slice(0, 10);
+  const upcoming = Object.entries(_strengthPlan)
+    .filter(([ds, e]) => ds >= today && (e.target_duration_min || 0) > 0)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .slice(0, 3);
+
+  let adjusted = 0;
+  for (const [ds, entry] of upcoming) {
+    const next = StrengthPlanWebEngine.applyStrengthAdaptation(entry, result.factor);
+    if (next.target_duration_min !== entry.target_duration_min) {
+      await _sb.from('strength_plan_entries').update({
+        target_duration_min: next.target_duration_min,
+      }).eq('user_id', _userId).eq('date', ds);
+      adjusted++;
+    }
+  }
+  if (adjusted) { _strengthPlan = await _fetchStrengthPlan(); _syncStrengthViews(); }
+  if (upcoming.length && postAsCoachMessage) {
+    await _postCoachText(CoachEngineWeb.composeMessage('adaptation_result', result));
+  }
 }
 
 // ── Action router (replaces WebSocket message types) ─────────────
@@ -381,6 +565,52 @@ async function _handleAction(msg) {
     case 'clear_chat':
       await _clearChat();
       break;
+
+    // ── Swimming ──
+    case 'log_swim':
+      await _logSwim(msg.swim || {});
+      break;
+
+    case 'delete_swim':
+      await _sb.from('swims').delete().eq('id', msg.swim_id).eq('user_id', _userId);
+      _swims = await _fetchSwims();
+      _syncSwimViews();
+      _syncDashboard();
+      break;
+
+    case 'swim_plan_day': {
+      await _sb.from('swim_plan_entries').delete()
+        .eq('user_id', _userId).eq('date', msg.date);
+      if (msg.entry) {
+        await _sb.from('swim_plan_entries').insert({ ...msg.entry, user_id: _userId, date: msg.date });
+      }
+      _swimPlan = await _fetchSwimPlan();
+      _syncSwimViews();
+      break;
+    }
+
+    // ── Strength ──
+    case 'log_strength':
+      await _logStrength(msg.session || {});
+      break;
+
+    case 'delete_strength':
+      await _sb.from('strength_sessions').delete().eq('id', msg.session_id).eq('user_id', _userId);
+      _strength = await _fetchStrength();
+      _syncStrengthViews();
+      _syncDashboard();
+      break;
+
+    case 'strength_plan_day': {
+      await _sb.from('strength_plan_entries').delete()
+        .eq('user_id', _userId).eq('date', msg.date);
+      if (msg.entry) {
+        await _sb.from('strength_plan_entries').insert({ ...msg.entry, user_id: _userId, date: msg.date });
+      }
+      _strengthPlan = await _fetchStrengthPlan();
+      _syncStrengthViews();
+      break;
+    }
   }
 }
 
@@ -639,6 +869,8 @@ async function _clearGeneratedRunPlan(silent = false) {
 async function _clearCalendar() {
   await _clearGeneratedPlan(true);
   await _clearGeneratedRunPlan(true);
+  await _sb.from('swim_plan_entries').delete().eq('user_id', _userId);
+  await _sb.from('strength_plan_entries').delete().eq('user_id', _userId);
 
   const workouts = await _fetchWorkouts();
   _plan = await _fetchPlan();
@@ -648,6 +880,12 @@ async function _clearCalendar() {
 
   _runPlan = await _fetchRunPlan();
   _syncRunViews();
+
+  _swimPlan = await _fetchSwimPlan();
+  _syncSwimViews();
+
+  _strengthPlan = await _fetchStrengthPlan();
+  _syncStrengthViews();
 
   toast('Calendar cleared.');
 }
@@ -683,13 +921,21 @@ async function _postCoachText(text) {
 window.FreeTrainAI = {
   postCoachRow: (role, text) => _postCoachRow(role, text),
   getCoachMessages: () => CoachWeb.getMessages(_sb, _userId),
-  generatePlan:     profile => _generatePlan(profile),
-  generateRunPlan:  profile => _generateRunPlan(profile),
+  generatePlan:          profile => _generatePlan(profile),
+  generateRunPlan:       profile => _generateRunPlan(profile),
+  generateSwimPlan:      profile => _generateSwimPlan(profile),
+  generateStrengthPlan:  profile => _generateStrengthPlan(profile),
+  logSwim:     swim    => _logSwim(swim),
+  logStrength: session => _logStrength(session),
   getProfile: () => _profile,
   getRides:   () => _rides,
   getRuns:    () => _runs,
+  getSwims:   () => _swims,
+  getStrength: () => _strength,
   getPlan:    () => _plan,
   getRunPlan: () => _runPlan,
+  getSwimPlan:     () => _swimPlan,
+  getStrengthPlan: () => _strengthPlan,
 
   async saveProfile(fields) {
     _profile = await CoachWeb.saveProfile(_sb, _userId, fields);
@@ -847,6 +1093,24 @@ async function _queueCheckinIfIdle() {
     const prompt = CoachEngineWeb.checkinPrompt('run', r.name || 'your run');
     prompt.payload.activity_id = r.id;
     await _postCoachRow('coach', prompt.text, prompt.message_type, prompt.payload);
+    return;
+  }
+
+  // Swims and strength sessions use the same feedback-is-null queue.
+  for (const [table, kind, label] of [
+    ['swims', 'swim', 'your swim'],
+    ['strength_sessions', 'strength', 'your strength session'],
+  ]) {
+    const { data } = await _sb.from(table).select('*')
+      .eq('user_id', _userId).is('feedback', null)
+      .gte('created_at', since).order('created_at').limit(1);
+    if (data && data.length) {
+      const a = data[0];
+      const prompt = CoachEngineWeb.checkinPrompt(kind, a.name || label);
+      prompt.payload.activity_id = a.id;
+      await _postCoachRow('coach', prompt.text, prompt.message_type, prompt.payload);
+      return;
+    }
   }
 }
 
@@ -862,6 +1126,16 @@ async function _coachCheckinReply(kind, activityId, feedback) {
     const r = _rides.find(x => x.id === activityId);
     if (r) r.feedback = feedback;
     await _runAdaptation({ postAsCoachMessage: true });
+  } else if (kind === 'swim') {
+    await _sb.from('swims').update({ feedback }).eq('id', activityId);
+    const s = _swims.find(x => x.id === activityId);
+    if (s) s.feedback = feedback;
+    await _runSwimAdaptation({ postAsCoachMessage: true });
+  } else if (kind === 'strength') {
+    await _sb.from('strength_sessions').update({ feedback }).eq('id', activityId);
+    const s = _strength.find(x => x.id === activityId);
+    if (s) s.feedback = feedback;
+    await _runStrengthAdaptation({ postAsCoachMessage: true });
   } else {
     await CoachWeb.setRunFeedback(_sb, activityId, feedback);
     const r = _runs.find(x => x.id === activityId);
@@ -1200,6 +1474,8 @@ document.addEventListener('DOMContentLoaded', () => {
   window._planner   = new CalendarPlanner();
   window._dashboard = new TrainingDashboard();
   window._runTab    = new RunTab();
+  window._swimTab     = new SwimTab();
+  window._strengthTab = new StrengthTab();
   window._coach     = new CoachChat();
 
   // Today's plan banner → load into ride tab

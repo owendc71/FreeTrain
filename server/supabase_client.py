@@ -385,6 +385,185 @@ async def set_run_plan_day(user_id: str, date_str: str, entry: Optional[dict]):
         }).execute())
 
 
+# ── Swims ──────────────────────────────────────────────────────────
+
+_SWIM_COLS = ("id,name,date,elapsed,distance_m,avg_pace_sec_per_100m,"
+              "stroke,completed,source,strava_id,feedback")
+
+
+async def get_swims(user_id: str) -> list[dict]:
+    r = await _run(lambda: db.table("swims")
+                              .select(_SWIM_COLS)
+                              .eq("user_id", user_id)
+                              .order("date", desc=True)
+                              .execute())
+    return r.data or []
+
+
+async def save_swim(user_id: str, swim: dict) -> Optional[dict]:
+    payload = {
+        "user_id":               user_id,
+        "name":                  swim.get("name", ""),
+        "date":                  swim.get("date", ""),
+        "elapsed":               swim.get("elapsed", 0),
+        "distance_m":            swim.get("distance_m", 0),
+        "avg_pace_sec_per_100m": swim.get("avg_pace_sec_per_100m", 0),
+        "stroke":                swim.get("stroke", "free"),
+        "completed":             swim.get("completed", True),
+        "source":                swim.get("source", "manual"),
+    }
+    if swim.get("strava_id"):
+        payload["strava_id"] = swim["strava_id"]
+    r = await _run(lambda: db.table("swims").insert(payload).execute())
+    return r.data[0] if r.data else None
+
+
+async def delete_swim(user_id: str, swim_id: str):
+    await _run(lambda: db.table("swims").delete()
+                          .eq("id", swim_id).eq("user_id", user_id).execute())
+
+
+# ── Swim plan ──────────────────────────────────────────────────────
+
+async def get_swim_plan(user_id: str) -> dict:
+    """Returns {date: entry_dict} for every scheduled swim day."""
+    r = await _run(lambda: db.table("swim_plan_entries")
+                              .select("*")
+                              .eq("user_id", user_id)
+                              .execute())
+    return {row["date"]: row for row in (r.data or [])}
+
+
+async def clear_swim_plan(user_id: str):
+    await _run(lambda: db.table("swim_plan_entries").delete()
+                          .eq("user_id", user_id).execute())
+
+
+async def save_swim_plan(user_id: str, entries: list[tuple[str, dict]]) -> int:
+    """Save a list of (date_iso, entry_dict) pairs. Returns number saved."""
+    for date_str, e in entries:
+        await _run(lambda d=date_str, ent=e: db.table("swim_plan_entries").upsert({
+            "user_id":             user_id,
+            "date":                d,
+            "swim_type":           ent["swim_type"],
+            "target_distance_m":   ent.get("target_distance_m", 0),
+            "target_duration_min": ent.get("target_duration_min", 0),
+            "description":         ent.get("description", ""),
+        }, on_conflict="user_id,date").execute())
+    return len(entries)
+
+
+async def update_swim_plan_entry(user_id: str, date_str: str, updates: dict):
+    await _run(lambda: db.table("swim_plan_entries")
+                          .update(updates)
+                          .eq("user_id", user_id)
+                          .eq("date", date_str)
+                          .execute())
+
+
+async def set_swim_plan_day(user_id: str, date_str: str, entry: Optional[dict]):
+    await _run(lambda: db.table("swim_plan_entries").delete()
+                          .eq("user_id", user_id).eq("date", date_str).execute())
+    if entry:
+        await _run(lambda: db.table("swim_plan_entries").insert({
+            "user_id":             user_id,
+            "date":                date_str,
+            "swim_type":           entry["swim_type"],
+            "target_distance_m":   entry.get("target_distance_m", 0),
+            "target_duration_min": entry.get("target_duration_min", 0),
+            "description":         entry.get("description", ""),
+        }).execute())
+
+
+# ── Strength sessions ──────────────────────────────────────────────
+
+_STRENGTH_COLS = ("id,name,date,elapsed,focus,perceived_effort,notes,"
+                  "completed,source,strava_id,feedback")
+
+
+async def get_strength_sessions(user_id: str) -> list[dict]:
+    r = await _run(lambda: db.table("strength_sessions")
+                              .select(_STRENGTH_COLS)
+                              .eq("user_id", user_id)
+                              .order("date", desc=True)
+                              .execute())
+    return r.data or []
+
+
+async def save_strength_session(user_id: str, session: dict) -> Optional[dict]:
+    payload = {
+        "user_id":   user_id,
+        "name":      session.get("name", ""),
+        "date":      session.get("date", ""),
+        "elapsed":   session.get("elapsed", 0),
+        "focus":     session.get("focus", "full"),
+        "notes":     session.get("notes", ""),
+        "completed": session.get("completed", True),
+        "source":    session.get("source", "manual"),
+    }
+    if session.get("perceived_effort"):
+        payload["perceived_effort"] = session["perceived_effort"]
+    if session.get("strava_id"):
+        payload["strava_id"] = session["strava_id"]
+    r = await _run(lambda: db.table("strength_sessions").insert(payload).execute())
+    return r.data[0] if r.data else None
+
+
+async def delete_strength_session(user_id: str, session_id: str):
+    await _run(lambda: db.table("strength_sessions").delete()
+                          .eq("id", session_id).eq("user_id", user_id).execute())
+
+
+# ── Strength plan ──────────────────────────────────────────────────
+
+async def get_strength_plan(user_id: str) -> dict:
+    """Returns {date: entry_dict} for every scheduled strength day."""
+    r = await _run(lambda: db.table("strength_plan_entries")
+                              .select("*")
+                              .eq("user_id", user_id)
+                              .execute())
+    return {row["date"]: row for row in (r.data or [])}
+
+
+async def clear_strength_plan(user_id: str):
+    await _run(lambda: db.table("strength_plan_entries").delete()
+                          .eq("user_id", user_id).execute())
+
+
+async def save_strength_plan(user_id: str, entries: list[tuple[str, dict]]) -> int:
+    """Save a list of (date_iso, entry_dict) pairs. Returns number saved."""
+    for date_str, e in entries:
+        await _run(lambda d=date_str, ent=e: db.table("strength_plan_entries").upsert({
+            "user_id":             user_id,
+            "date":                d,
+            "focus":               ent["focus"],
+            "target_duration_min": ent.get("target_duration_min", 0),
+            "description":         ent.get("description", ""),
+        }, on_conflict="user_id,date").execute())
+    return len(entries)
+
+
+async def update_strength_plan_entry(user_id: str, date_str: str, updates: dict):
+    await _run(lambda: db.table("strength_plan_entries")
+                          .update(updates)
+                          .eq("user_id", user_id)
+                          .eq("date", date_str)
+                          .execute())
+
+
+async def set_strength_plan_day(user_id: str, date_str: str, entry: Optional[dict]):
+    await _run(lambda: db.table("strength_plan_entries").delete()
+                          .eq("user_id", user_id).eq("date", date_str).execute())
+    if entry:
+        await _run(lambda: db.table("strength_plan_entries").insert({
+            "user_id":             user_id,
+            "date":                date_str,
+            "focus":               entry["focus"],
+            "target_duration_min": entry.get("target_duration_min", 0),
+            "description":         entry.get("description", ""),
+        }).execute())
+
+
 # ── Strava ─────────────────────────────────────────────────────────
 
 async def get_strava_connection(user_id: str) -> Optional[dict]:
@@ -512,6 +691,20 @@ async def set_run_feedback(run_id: str, feedback: str):
                           .execute())
 
 
+async def set_swim_feedback(swim_id: str, feedback: str):
+    await _run(lambda: db.table("swims")
+                          .update({"feedback": feedback})
+                          .eq("id", swim_id)
+                          .execute())
+
+
+async def set_strength_feedback(session_id: str, feedback: str):
+    await _run(lambda: db.table("strength_sessions")
+                          .update({"feedback": feedback})
+                          .eq("id", session_id)
+                          .execute())
+
+
 async def get_rides_needing_checkin(user_id: str, since: Optional[str] = None, limit: int = 5) -> list[dict]:
     """`since` (an ISO timestamp, typically athlete_profiles.onboarded_at) excludes the
     pre-existing ride backlog from before the coach relationship started."""
@@ -528,6 +721,28 @@ async def get_rides_needing_checkin(user_id: str, since: Optional[str] = None, l
 async def get_runs_needing_checkin(user_id: str, since: Optional[str] = None, limit: int = 5) -> list[dict]:
     def _q():
         q = (db.table("runs").select(_RUN_COLS).eq("user_id", user_id)
+               .is_("feedback", "null").order("created_at").limit(limit))
+        if since:
+            q = q.gte("created_at", since)
+        return q.execute()
+    r = await _run(_q)
+    return r.data or []
+
+
+async def get_swims_needing_checkin(user_id: str, since: Optional[str] = None, limit: int = 5) -> list[dict]:
+    def _q():
+        q = (db.table("swims").select(_SWIM_COLS).eq("user_id", user_id)
+               .is_("feedback", "null").order("created_at").limit(limit))
+        if since:
+            q = q.gte("created_at", since)
+        return q.execute()
+    r = await _run(_q)
+    return r.data or []
+
+
+async def get_strength_needing_checkin(user_id: str, since: Optional[str] = None, limit: int = 5) -> list[dict]:
+    def _q():
+        q = (db.table("strength_sessions").select(_STRENGTH_COLS).eq("user_id", user_id)
                .is_("feedback", "null").order("created_at").limit(limit))
         if since:
             q = q.gte("created_at", since)

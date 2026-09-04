@@ -33,14 +33,39 @@ const RunPlanWebEngine = (() => {
     6: [['recovery', 0.08], ['easy', 0.16], ['intervals', 0.18], ['tempo', 0.18], ['long', 0.32], ['easy', 0.08]],
   };
 
-  const WEEK_FACTORS_BUILD = [0.85, 0.95, 1.00, 0.70, 1.00, 1.05];
-  const WEEK_FACTORS_RACE  = [0.85, 0.95, 1.00, 0.70, 1.00, 0.70];
-
   const DEFAULT_PACE_SEC_PER_KM = 375.0;
+
+  // Plan length. Mirrors run_plan_engine.py.
+  const DEFAULT_WEEKS = 6;
+  const MIN_WEEKS     = 1;
+  const MAX_WEEKS     = 24;
+  const WEEK_CAP      = 1.20;
+
+  // 3:1 periodization of arbitrary length. At weeks=6 with taper=true
+  // this reproduces the original [0.85,0.95,1.00,0.70,1.00,0.70].
+  function weekFactors(weeks, taper) {
+    const out = [];
+    for (let i = 0; i < weeks; i++) {
+      if (i % 4 === 3) {
+        out.push(0.70);
+      } else {
+        const block = Math.floor(i / 4);
+        const base  = [0.85, 0.95, 1.00][i % 4] + 0.15 * block;
+        out.push(Math.round(Math.min(base, WEEK_CAP) * 100) / 100);
+      }
+    }
+    if (taper && weeks >= 2) out[out.length - 1] = 0.70;
+    return out;
+  }
+
+  // DAY_PATTERNS above use Python's weekday() convention (Mon=0 … Sun=6),
+  // NOT JS getDay() (Sun=0 … Sat=6). Convert before comparing, so this
+  // file and run_plan_engine.py schedule the same weekdays.
+  function mondayIndex(d) { return (d.getDay() + 6) % 7; }
 
   function nextMonday(d) {
     const r = new Date(d);
-    const delta = (7 - r.getDay()) % 7;
+    const delta = (7 - mondayIndex(r)) % 7;
     r.setDate(r.getDate() + delta);
     return r;
   }
@@ -49,10 +74,11 @@ const RunPlanWebEngine = (() => {
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   }
 
-  function generateRunPlan({ goal, level, daysPerWeek, weeklyTargetM, avgPaceSecPerKm }) {
+  function generateRunPlan({ goal, level, daysPerWeek, weeklyTargetM, avgPaceSecPerKm, weeks }) {
     daysPerWeek = Math.min(Math.max(daysPerWeek, 3), 6);
+    weeks       = Math.min(Math.max(parseInt(weeks, 10) || DEFAULT_WEEKS, MIN_WEEKS), MAX_WEEKS);
     const slots   = SLOTS[daysPerWeek];
-    const factors = RACE_GOALS.has(goal) ? WEEK_FACTORS_RACE : WEEK_FACTORS_BUILD;
+    const factors = weekFactors(weeks, RACE_GOALS.has(goal));
 
     const levelScale = { beginner: 0.90, intermediate: 1.0, advanced: 1.10 }[level] ?? 1.0;
     const baseWeekly  = Math.max(weeklyTargetM * levelScale, 8000);
@@ -77,7 +103,7 @@ const RunPlanWebEngine = (() => {
     const dates   = [];
     let cursor    = nextMonday(new Date());
     while (dates.length < entries.length) {
-      if (pattern.includes(cursor.getDay())) dates.push(isoDate(cursor));
+      if (pattern.includes(mondayIndex(cursor))) dates.push(isoDate(cursor));
       cursor.setDate(cursor.getDate() + 1);
     }
 
@@ -159,6 +185,10 @@ const RunPlanWebEngine = (() => {
           ? " You've told me recent runs felt easy, so upcoming volume is nudged up a bit more."
           : " You've flagged recent runs as tough, so upcoming volume is eased back further.";
       }
+      // Hitting every target doesn't justify more mileage when the runner
+      // is telling us it's too hard — negative feedback always wins over
+      // a positive adherence bonus.
+      if (fbDelta < 0) factor = Math.min(factor, fbDelta);
     }
 
     factor = Math.max(-0.15, Math.min(0.10, factor));

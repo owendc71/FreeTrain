@@ -44,11 +44,37 @@ _SLOTS: dict[int, list[tuple[str, float]]] = {
         ("long", 0.32), ("easy", 0.08)],
 }
 
-# 3:1 periodization across 6 weeks, as a fraction of the target weekly mileage.
-_WEEK_FACTORS_BUILD = [0.85, 0.95, 1.00, 0.70, 1.00, 1.05]   # base_mileage: peak finish
-_WEEK_FACTORS_RACE  = [0.85, 0.95, 1.00, 0.70, 1.00, 0.70]   # race goals: taper finish
-
 DEFAULT_PACE_SEC_PER_KM = 375.0   # ~6:15/km, a common recreational easy pace
+
+# Plan length
+DEFAULT_WEEKS = 6
+MIN_WEEKS     = 1
+MAX_WEEKS     = 24
+
+_WEEK_CAP = 1.20   # never exceed 120% of the athlete's target weekly volume
+
+
+def week_factors(weeks: int, taper: bool) -> list[float]:
+    """
+    3:1 periodization of arbitrary length, as a fraction of target weekly
+    mileage: three progressively harder weeks, then a recovery week at
+    70%, repeating — each 4-week block starting 15% higher than the last,
+    capped at 120% of target. Race goals replace the final week with a
+    taper.
+
+    At weeks=6 with taper=True this reproduces the original hardcoded
+    [0.85, 0.95, 1.00, 0.70, 1.00, 0.70] exactly.
+    """
+    out: list[float] = []
+    for i in range(weeks):
+        if i % 4 == 3:
+            out.append(0.70)                       # recovery week
+        else:
+            block = i // 4
+            out.append(round(min([0.85, 0.95, 1.00][i % 4] + 0.15 * block, _WEEK_CAP), 2))
+    if taper and weeks >= 2:
+        out[-1] = 0.70
+    return out
 
 
 # ── Public API ──────────────────────────────────────────────────────
@@ -59,12 +85,14 @@ def generate_run_plan(
     days_per_week: int,
     weekly_target_m: float,
     avg_pace_sec_per_km: float = DEFAULT_PACE_SEC_PER_KM,
+    weeks: int = DEFAULT_WEEKS,
     start_date: Optional[date] = None,
 ) -> list[tuple[str, dict]]:
-    """Return [(date_iso, entry_dict), …] for a 6-week run plan."""
+    """Return [(date_iso, entry_dict), …] for a `weeks`-long run plan."""
     days_per_week = max(3, min(days_per_week, 6))
+    weeks   = max(MIN_WEEKS, min(int(weeks or DEFAULT_WEEKS), MAX_WEEKS))
     slots   = _SLOTS[days_per_week]
-    factors = _WEEK_FACTORS_RACE if goal in _RACE_GOALS else _WEEK_FACTORS_BUILD
+    factors = week_factors(weeks, taper=goal in _RACE_GOALS)
 
     level_scale = {"beginner": 0.90, "intermediate": 1.0, "advanced": 1.10}.get(level, 1.0)
     base_weekly = max(weekly_target_m * level_scale, 8000)   # floor ~5mi/week
@@ -197,6 +225,11 @@ def compute_run_adaptation(runs: list[dict], plan_entries: dict[str, dict]) -> t
             note += (" You've told me recent runs felt easy, so upcoming volume is nudged up a bit more."
                       if fb_delta > 0 else
                       " You've flagged recent runs as tough, so upcoming volume is eased back further.")
+        # Hitting every target doesn't justify more mileage when the runner
+        # is telling us it's too hard — negative feedback always wins over
+        # a positive adherence bonus.
+        if fb_delta < 0:
+            factor = min(factor, fb_delta)
 
     factor = max(-0.15, min(0.10, factor))
     status = ("adjusted_up" if factor > 0.02

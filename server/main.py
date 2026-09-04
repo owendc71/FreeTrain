@@ -14,12 +14,25 @@ from fastapi.staticfiles import StaticFiles
 import coach_engine
 import strava
 from ble_manager import BLEManager
-from plan_engine import apply_adaptation, compute_adaptation, generate_plan
+from plan_engine import (
+    DEFAULT_WEEKS, MAX_WEEKS, MIN_WEEKS,
+    apply_adaptation, compute_adaptation, generate_plan,
+)
 from run_plan_engine import apply_run_adaptation, compute_run_adaptation, generate_run_plan
+from strength_plan_engine import (
+    apply_strength_adaptation, compute_strength_adaptation, generate_strength_plan,
+)
+from swim_plan_engine import apply_swim_adaptation, compute_swim_adaptation, generate_swim_plan
 from supabase_client import (
     SUPABASE_ANON_KEY, SUPABASE_URL,
     clear_coach_messages, clear_generated_plan, clear_run_plan,
-    delete_ride, delete_run,
+    clear_strength_plan, clear_swim_plan,
+    delete_ride, delete_run, delete_strength_session, delete_swim,
+    get_strength_needing_checkin, get_strength_plan, get_strength_sessions,
+    get_swim_plan, get_swims, get_swims_needing_checkin,
+    save_strength_plan, save_strength_session, save_swim, save_swim_plan,
+    set_strength_feedback, set_strength_plan_day, set_swim_feedback, set_swim_plan_day,
+    update_strength_plan_entry, update_swim_plan_entry,
     delete_strava_connection, delete_workout, get_athlete_profile,
     get_coach_messages, get_latest_coach_message, get_plan, get_rides,
     get_rides_needing_checkin,
@@ -205,6 +218,81 @@ async def _run_run_adaptation(user_id: str, post_as_coach_message: bool = False)
         await _broadcast(user_id, {"type": "run_plan_updated", "run_plan": run_plan})
 
 
+async def _run_swim_adaptation(user_id: str, post_as_coach_message: bool = False):
+    """Recompute swim adaptation and adjust the next few planned swim days."""
+    swims_all = await get_swims(user_id)
+    swim_plan = await get_swim_plan(user_id)
+    factor, status, message = compute_swim_adaptation(swims_all, swim_plan)
+
+    today = datetime.now(timezone.utc).date().isoformat()
+    upcoming = sorted(
+        (ds, e) for ds, e in swim_plan.items()
+        if ds >= today and (e.get("target_distance_m") or 0) > 0
+    )[:3]
+
+    adjusted = 0
+    for ds, entry in upcoming:
+        new = apply_swim_adaptation(entry, factor)
+        if new["target_distance_m"] != entry.get("target_distance_m"):
+            await update_swim_plan_entry(user_id, ds, {
+                "target_distance_m":   new["target_distance_m"],
+                "target_duration_min": new["target_duration_min"],
+            })
+            adjusted += 1
+
+    if upcoming:
+        await _broadcast(user_id, {
+            "type":    "swim_adaptation_feedback",
+            "status":  status,
+            "message": message,
+            "entries_adjusted": adjusted,
+        })
+        if post_as_coach_message:
+            await _post_coach_text(user_id, coach_engine.compose_message(
+                "adaptation_result", {"status": status, "message": message, "factor": factor},
+            ))
+    if adjusted:
+        swim_plan = await get_swim_plan(user_id)
+        await _broadcast(user_id, {"type": "swim_plan_updated", "swim_plan": swim_plan})
+
+
+async def _run_strength_adaptation(user_id: str, post_as_coach_message: bool = False):
+    """Recompute strength adaptation and adjust the next few planned sessions."""
+    sessions_all   = await get_strength_sessions(user_id)
+    strength_plan  = await get_strength_plan(user_id)
+    factor, status, message = compute_strength_adaptation(sessions_all, strength_plan)
+
+    today = datetime.now(timezone.utc).date().isoformat()
+    upcoming = sorted(
+        (ds, e) for ds, e in strength_plan.items()
+        if ds >= today and (e.get("target_duration_min") or 0) > 0
+    )[:3]
+
+    adjusted = 0
+    for ds, entry in upcoming:
+        new = apply_strength_adaptation(entry, factor)
+        if new["target_duration_min"] != entry.get("target_duration_min"):
+            await update_strength_plan_entry(user_id, ds, {
+                "target_duration_min": new["target_duration_min"],
+            })
+            adjusted += 1
+
+    if upcoming:
+        await _broadcast(user_id, {
+            "type":    "strength_adaptation_feedback",
+            "status":  status,
+            "message": message,
+            "entries_adjusted": adjusted,
+        })
+        if post_as_coach_message:
+            await _post_coach_text(user_id, coach_engine.compose_message(
+                "adaptation_result", {"status": status, "message": message, "factor": factor},
+            ))
+    if adjusted:
+        strength_plan = await get_strength_plan(user_id)
+        await _broadcast(user_id, {"type": "strength_plan_updated", "strength_plan": strength_plan})
+
+
 # One sync per user at a time, throttled to every 10 minutes
 _strava_sync_at: dict[str, float] = {}
 
@@ -325,26 +413,39 @@ async def _seed_onboarding_if_new(user_id: str):
     await _post_coach_step(user_id, "discipline", {})
 
 
+def _clamp_weeks(weeks) -> int:
+    """Plan length in weeks, defaulting to 6 and bounded to what the
+    engines support. All four engines share the same bounds."""
+    try:
+        w = int(weeks)
+    except (TypeError, ValueError):
+        return DEFAULT_WEEKS
+    return max(MIN_WEEKS, min(w, MAX_WEEKS))
+
+
 async def _do_generate_plan(user_id: str, profile: dict) -> int:
     """Generate (and replace) the user's cycling plan. Returns sessions created."""
+    weeks = _clamp_weeks(profile.get("weeks"))
     sessions = generate_plan(
         goal          = profile.get("goal", "base_fitness"),
         level         = profile.get("level", "intermediate"),
         days_per_week = int(profile.get("days_per_week", 4)),
         session_mins  = int(profile.get("session_mins", 60)),
+        weeks         = weeks,
     )
     await clear_generated_plan(user_id)
     n = await save_generated_plan(user_id, sessions)
-    log.info("Plan generated: user=%s  sessions=%d  goal=%s", user_id, n, profile.get("goal"))
+    log.info("Plan generated: user=%s  sessions=%d  weeks=%d  goal=%s",
+             user_id, n, weeks, profile.get("goal"))
 
     workouts, plan = await asyncio.gather(get_workouts(user_id), get_plan(user_id))
     await _broadcast(user_id, {
         "type":             "plan_generated",
         "sessions_created": n,
-        "weeks":            6,
+        "weeks":            weeks,
         "goal":             profile.get("goal", "base_fitness"),
         "ftp":              int(profile.get("ftp", 0)) or None,
-        "message":          f"Your 6-week plan is ready — {n} sessions scheduled.",
+        "message":          f"Your {weeks}-week plan is ready — {n} sessions scheduled.",
     })
     await _broadcast(user_id, {"type": "workouts_updated", "workouts": workouts})
     await _broadcast(user_id, {"type": "plan_updated", "plan": plan})
@@ -357,6 +458,7 @@ async def _do_generate_run_plan(user_id: str, profile: dict) -> int:
     paces    = [r["avg_pace_sec_per_km"] for r in runs_all if r.get("avg_pace_sec_per_km")]
     avg_pace = sum(paces) / len(paces) if paces else 375.0
 
+    weeks = _clamp_weeks(profile.get("weeks"))
     weekly_target_m = float(profile.get("weekly_miles", 15)) * 1609.34
     sessions = generate_run_plan(
         goal                = profile.get("goal", "base_mileage"),
@@ -364,20 +466,81 @@ async def _do_generate_run_plan(user_id: str, profile: dict) -> int:
         days_per_week       = int(profile.get("days_per_week", 4)),
         weekly_target_m     = weekly_target_m,
         avg_pace_sec_per_km = avg_pace,
+        weeks               = weeks,
     )
     await clear_run_plan(user_id)
     n = await save_run_plan(user_id, sessions)
-    log.info("Run plan generated: user=%s  sessions=%d  goal=%s", user_id, n, profile.get("goal"))
+    log.info("Run plan generated: user=%s  sessions=%d  weeks=%d  goal=%s",
+             user_id, n, weeks, profile.get("goal"))
 
     run_plan = await get_run_plan(user_id)
     await _broadcast(user_id, {
         "type":             "run_plan_generated",
         "sessions_created": n,
-        "weeks":            6,
+        "weeks":            weeks,
         "goal":             profile.get("goal", "base_mileage"),
-        "message":          f"Your 6-week run plan is ready — {n} runs scheduled.",
+        "message":          f"Your {weeks}-week run plan is ready — {n} runs scheduled.",
     })
     await _broadcast(user_id, {"type": "run_plan_updated", "run_plan": run_plan})
+    return n
+
+
+async def _do_generate_swim_plan(user_id: str, profile: dict) -> int:
+    """Generate (and replace) the user's swim plan. Returns sessions created."""
+    swims_all = await get_swims(user_id)
+    paces     = [s["avg_pace_sec_per_100m"] for s in swims_all if s.get("avg_pace_sec_per_100m")]
+    avg_pace  = sum(paces) / len(paces) if paces else 120.0
+
+    weeks = _clamp_weeks(profile.get("weeks"))
+    sessions = generate_swim_plan(
+        goal                  = profile.get("goal", "base_fitness"),
+        level                 = profile.get("level", "intermediate"),
+        days_per_week         = int(profile.get("days_per_week", 3)),
+        weekly_target_m       = float(profile.get("weekly_meters", 6000)),
+        avg_pace_sec_per_100m = avg_pace,
+        weeks                 = weeks,
+    )
+    await clear_swim_plan(user_id)
+    n = await save_swim_plan(user_id, sessions)
+    log.info("Swim plan generated: user=%s  sessions=%d  weeks=%d  goal=%s",
+             user_id, n, weeks, profile.get("goal"))
+
+    swim_plan = await get_swim_plan(user_id)
+    await _broadcast(user_id, {
+        "type":             "swim_plan_generated",
+        "sessions_created": n,
+        "weeks":            weeks,
+        "goal":             profile.get("goal", "base_fitness"),
+        "message":          f"Your {weeks}-week swim plan is ready — {n} swims scheduled.",
+    })
+    await _broadcast(user_id, {"type": "swim_plan_updated", "swim_plan": swim_plan})
+    return n
+
+
+async def _do_generate_strength_plan(user_id: str, profile: dict) -> int:
+    """Generate (and replace) the user's strength plan. Returns sessions created."""
+    weeks = _clamp_weeks(profile.get("weeks"))
+    sessions = generate_strength_plan(
+        goal          = profile.get("goal", "general_strength"),
+        level         = profile.get("level", "intermediate"),
+        days_per_week = int(profile.get("days_per_week", 3)),
+        session_mins  = float(profile.get("session_mins", 45)),
+        weeks         = weeks,
+    )
+    await clear_strength_plan(user_id)
+    n = await save_strength_plan(user_id, sessions)
+    log.info("Strength plan generated: user=%s  sessions=%d  weeks=%d  goal=%s",
+             user_id, n, weeks, profile.get("goal"))
+
+    strength_plan = await get_strength_plan(user_id)
+    await _broadcast(user_id, {
+        "type":             "strength_plan_generated",
+        "sessions_created": n,
+        "weeks":            weeks,
+        "goal":             profile.get("goal", "general_strength"),
+        "message":          f"Your {weeks}-week strength plan is ready — {n} sessions scheduled.",
+    })
+    await _broadcast(user_id, {"type": "strength_plan_updated", "strength_plan": strength_plan})
     return n
 
 
@@ -490,6 +653,22 @@ async def _queue_checkin_if_idle(user_id: str):
         prompt = coach_engine.checkin_prompt("run", r.get("name") or "your run")
         prompt["payload"]["activity_id"] = r["id"]
         await _post_coach_row(user_id, "coach", prompt["text"], prompt["message_type"], prompt["payload"])
+        return
+
+    swims_needing = await get_swims_needing_checkin(user_id, since=since, limit=1)
+    if swims_needing:
+        s = swims_needing[0]
+        prompt = coach_engine.checkin_prompt("swim", s.get("name") or "your swim")
+        prompt["payload"]["activity_id"] = s["id"]
+        await _post_coach_row(user_id, "coach", prompt["text"], prompt["message_type"], prompt["payload"])
+        return
+
+    strength_needing = await get_strength_needing_checkin(user_id, since=since, limit=1)
+    if strength_needing:
+        s = strength_needing[0]
+        prompt = coach_engine.checkin_prompt("strength", s.get("name") or "your strength session")
+        prompt["payload"]["activity_id"] = s["id"]
+        await _post_coach_row(user_id, "coach", prompt["text"], prompt["message_type"], prompt["payload"])
 
 
 async def _handle_coach_checkin_reply(user_id: str, kind: str, activity_id: str, feedback: str):
@@ -503,6 +682,12 @@ async def _handle_coach_checkin_reply(user_id: str, kind: str, activity_id: str,
     if kind == "ride":
         await set_ride_feedback(activity_id, feedback)
         await _run_adaptation(user_id, post_as_coach_message=True)
+    elif kind == "swim":
+        await set_swim_feedback(activity_id, feedback)
+        await _run_swim_adaptation(user_id, post_as_coach_message=True)
+    elif kind == "strength":
+        await set_strength_feedback(activity_id, feedback)
+        await _run_strength_adaptation(user_id, post_as_coach_message=True)
     else:
         await set_run_feedback(activity_id, feedback)
         await _run_run_adaptation(user_id, post_as_coach_message=True)
@@ -515,13 +700,20 @@ async def _handle_coach_start_onboarding(user_id: str):
 
 
 async def _handle_clear_calendar(user_id: str):
-    """Wipe both generated plans (cycling + running) — leaves the coach
-    profile/conversation untouched."""
+    """Wipe every generated plan (cycling, running, swimming, strength) —
+    leaves the coach profile/conversation untouched."""
     await clear_generated_plan(user_id)
     await clear_run_plan(user_id)
-    plan, run_plan = await asyncio.gather(get_plan(user_id), get_run_plan(user_id))
-    await _broadcast(user_id, {"type": "plan_updated", "plan": plan})
-    await _broadcast(user_id, {"type": "run_plan_updated", "run_plan": run_plan})
+    await clear_swim_plan(user_id)
+    await clear_strength_plan(user_id)
+    plan, run_plan, swim_plan, strength_plan = await asyncio.gather(
+        get_plan(user_id), get_run_plan(user_id),
+        get_swim_plan(user_id), get_strength_plan(user_id),
+    )
+    await _broadcast(user_id, {"type": "plan_updated",          "plan": plan})
+    await _broadcast(user_id, {"type": "run_plan_updated",      "run_plan": run_plan})
+    await _broadcast(user_id, {"type": "swim_plan_updated",     "swim_plan": swim_plan})
+    await _broadcast(user_id, {"type": "strength_plan_updated", "strength_plan": strength_plan})
 
 
 async def _handle_clear_chat(user_id: str):
@@ -591,26 +783,35 @@ async def ws_endpoint(ws: WebSocket, token: str = Query(default=None)):
 
     await _seed_onboarding_if_new(user_id)
 
-    workouts, rides, plan, runs, run_plan, profile, coach_messages = await asyncio.gather(
+    (workouts, rides, plan, runs, run_plan, swims, swim_plan,
+     strength_sessions, strength_plan, profile, coach_messages) = await asyncio.gather(
         get_workouts(user_id),
         get_rides(user_id),
         get_plan(user_id),
         get_runs(user_id),
         get_run_plan(user_id),
+        get_swims(user_id),
+        get_swim_plan(user_id),
+        get_strength_sessions(user_id),
+        get_strength_plan(user_id),
         get_athlete_profile(user_id),
         get_coach_messages(user_id),
     )
 
     import json
     await ws.send_text(json.dumps({
-        "type":           "init",
-        "workouts":       workouts,
-        "rides":          rides,
-        "plan":           plan,
-        "runs":           runs,
-        "run_plan":       run_plan,
-        "profile":        profile,
-        "coach_messages": coach_messages,
+        "type":              "init",
+        "workouts":          workouts,
+        "rides":             rides,
+        "plan":              plan,
+        "runs":              runs,
+        "run_plan":          run_plan,
+        "swims":             swims,
+        "swim_plan":         swim_plan,
+        "strength_sessions": strength_sessions,
+        "strength_plan":     strength_plan,
+        "profile":           profile,
+        "coach_messages":    coach_messages,
         **ble.get_status(),
     }))
 
@@ -777,6 +978,62 @@ async def _handle(user_id: str, msg: dict):
     elif action == "get_run_plan":
         run_plan = await get_run_plan(user_id)
         await _broadcast(user_id, {"type": "run_plan_updated", "run_plan": run_plan})
+
+    # ── Swimming ──
+    elif action == "get_swims":
+        swims = await get_swims(user_id)
+        await _broadcast(user_id, {"type": "swims_updated", "swims": swims})
+
+    elif action == "log_swim":
+        await save_swim(user_id, msg.get("swim") or {})
+        swims = await get_swims(user_id)
+        await _broadcast(user_id, {"type": "swims_updated", "swims": swims})
+        await _run_swim_adaptation(user_id, post_as_coach_message=True)
+        await _queue_checkin_if_idle(user_id)
+
+    elif action == "delete_swim":
+        await delete_swim(user_id, msg["swim_id"])
+        swims = await get_swims(user_id)
+        await _broadcast(user_id, {"type": "swims_updated", "swims": swims})
+
+    elif action == "swim_plan_day":
+        date_str = msg.get("date", "")
+        if date_str:
+            await set_swim_plan_day(user_id, date_str, msg.get("entry") or None)
+            swim_plan = await get_swim_plan(user_id)
+            await _broadcast(user_id, {"type": "swim_plan_updated", "swim_plan": swim_plan})
+
+    elif action == "get_swim_plan":
+        swim_plan = await get_swim_plan(user_id)
+        await _broadcast(user_id, {"type": "swim_plan_updated", "swim_plan": swim_plan})
+
+    # ── Strength ──
+    elif action == "get_strength":
+        sessions = await get_strength_sessions(user_id)
+        await _broadcast(user_id, {"type": "strength_updated", "strength_sessions": sessions})
+
+    elif action == "log_strength":
+        await save_strength_session(user_id, msg.get("session") or {})
+        sessions = await get_strength_sessions(user_id)
+        await _broadcast(user_id, {"type": "strength_updated", "strength_sessions": sessions})
+        await _run_strength_adaptation(user_id, post_as_coach_message=True)
+        await _queue_checkin_if_idle(user_id)
+
+    elif action == "delete_strength":
+        await delete_strength_session(user_id, msg["session_id"])
+        sessions = await get_strength_sessions(user_id)
+        await _broadcast(user_id, {"type": "strength_updated", "strength_sessions": sessions})
+
+    elif action == "strength_plan_day":
+        date_str = msg.get("date", "")
+        if date_str:
+            await set_strength_plan_day(user_id, date_str, msg.get("entry") or None)
+            strength_plan = await get_strength_plan(user_id)
+            await _broadcast(user_id, {"type": "strength_plan_updated", "strength_plan": strength_plan})
+
+    elif action == "get_strength_plan":
+        strength_plan = await get_strength_plan(user_id)
+        await _broadcast(user_id, {"type": "strength_plan_updated", "strength_plan": strength_plan})
 
     # ── Strava ──
     elif action == "strava_status":

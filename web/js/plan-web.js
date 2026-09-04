@@ -7,6 +7,13 @@
 
 const PlanWebEngine = (() => {
 
+  // Plan length. Templates are authored as six weeks; resequenceWeeks()
+  // re-flows them to any requested length. Mirrors plan_engine.py.
+  const TEMPLATE_WEEKS = 6;
+  const DEFAULT_WEEKS  = 6;
+  const MIN_WEEKS      = 1;
+  const MAX_WEEKS      = 24;
+
   // ── Interval primitives ─────────────────────────────────────────
   // power_pct is a fraction of FTP (0.65 = 65%) to match user-created
   // workouts, the chart, and the workout engine.
@@ -138,9 +145,14 @@ const PlanWebEngine = (() => {
     7: [0, 1, 2, 3, 4, 5, 6],
   };
 
+  // DAY_PATTERNS above use Python's weekday() convention (Mon=0 … Sun=6),
+  // NOT JS getDay() (Sun=0 … Sat=6). Convert before comparing, so this
+  // file and plan_engine.py schedule the same weekdays.
+  function mondayIndex(d) { return (d.getDay() + 6) % 7; }
+
   function nextMonday(d) {
     const r = new Date(d);
-    const delta = (7 - r.getDay()) % 7;
+    const delta = (7 - mondayIndex(r)) % 7;
     r.setDate(r.getDate() + delta);
     return r;
   }
@@ -151,18 +163,46 @@ const PlanWebEngine = (() => {
 
   // ── Public API ────────────────────────────────────────────────────
 
-  function generatePlan({ goal, level, daysPerWeek, sessionMins }) {
+  // Re-sequence a 6-week template into `weeks` weeks, preserving 3:1
+  // periodization. At weeks=6 this reproduces the template exactly.
+  // Mirrors _resequence_weeks() in server/plan_engine.py.
+  function resequenceWeeks(types, baseDays, weeks) {
+    const chunks = [];
+    for (let i = 0; i < TEMPLATE_WEEKS; i++) {
+      chunks.push(types.slice(i * baseDays, (i + 1) * baseDays));
+    }
+    const recovery = chunks[3];
+    const build    = [chunks[0], chunks[1], chunks[2], chunks[4], chunks[5]];
+
+    const out = [];
+    let bi = 0;
+    for (let i = 0; i < weeks; i++) {
+      if (i % 4 === 3) {
+        out.push(...recovery);
+      } else {
+        out.push(...build[Math.min(bi, build.length - 1)]);
+        bi++;
+      }
+    }
+    return out;
+  }
+
+  function generatePlan({ goal, level, daysPerWeek, sessionMins, weeks }) {
     goal        = PLANS[goal] ? goal : 'base_fitness';
     daysPerWeek = Math.min(Math.max(daysPerWeek, 3), 7);
+    weeks       = Math.min(Math.max(parseInt(weeks, 10) || DEFAULT_WEEKS, MIN_WEEKS), MAX_WEEKS);
 
     const scale   = { beginner: 0.85, intermediate: 1.0, advanced: 1.15 }[level] ?? 1.0;
     const effMins = Math.max(Math.round(sessionMins * scale), 30);
 
-    let types = [...(PLANS[goal][Math.min(daysPerWeek, 5)] || PLANS[goal][4])];
+    const baseDays = Math.min(daysPerWeek, 5);
+    let types = [...(PLANS[goal][baseDays] || PLANS[goal][4])];
+    types = resequenceWeeks(types, baseDays, weeks);
+
     if (daysPerWeek > 5) {
       const extra = daysPerWeek - 5;
       const expanded = [];
-      for (let w = 0; w < 6; w++) {
+      for (let w = 0; w < weeks; w++) {
         const week = types.slice(w * 5, (w + 1) * 5);
         const adds = (w % 4 === 3) ? Array(extra).fill('recovery') : Array(extra).fill('endurance_easy');
         expanded.push(...adds, ...week);
@@ -174,7 +214,7 @@ const PlanWebEngine = (() => {
     const dates   = [];
     let cursor    = nextMonday(new Date());
     while (dates.length < types.length) {
-      if (pattern.includes(cursor.getDay())) dates.push(isoDate(cursor));
+      if (pattern.includes(mondayIndex(cursor))) dates.push(isoDate(cursor));
       cursor.setDate(cursor.getDate() + 1);
     }
 
@@ -248,6 +288,10 @@ const PlanWebEngine = (() => {
           ? " You've told me recent sessions felt easy, so intensity is nudged up a bit more."
           : " You've flagged recent sessions as tough, so intensity is eased back further.";
       }
+      // Hitting every target doesn't justify more load when the athlete
+      // is telling us it's too hard — negative feedback always wins over
+      // a positive adherence bonus.
+      if (fbDelta < 0) factor = Math.min(factor, fbDelta);
     }
 
     factor = Math.max(-0.15, Math.min(0.10, factor));

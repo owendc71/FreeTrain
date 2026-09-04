@@ -20,6 +20,8 @@
     <button class="tab-btn"        data-tab="plan">Plan</button>
     <button class="tab-btn"        data-tab="run">Run</button>
     <button class="tab-btn"        data-tab="ride">Ride</button>
+    <button class="tab-btn"        data-tab="swim">Swim</button>
+    <button class="tab-btn"        data-tab="strength">Strength</button>
     <button class="tab-btn"        data-tab="create">Create</button>
     <button class="tab-btn"        data-tab="devices">Devices</button>
   </nav>
@@ -306,6 +308,81 @@
 
   </section>
 
+  <!-- ════════════════════════════ SWIM TAB ════════════════════════════ -->
+  <section id="tab-swim" class="tab-content">
+
+    <div class="history-header">
+      <h2>Swims</h2>
+      <span class="history-count" id="swim-count"></span>
+    </div>
+
+    <div class="history-summary" id="swim-summary" style="display:none">
+      <div class="hs-stat">
+        <span class="hs-value" id="ss-swims">0</span>
+        <span class="hs-label">Swims</span>
+      </div>
+      <div class="hs-stat">
+        <span class="hs-value" id="ss-distance">0</span>
+        <span class="hs-label">Total Distance</span>
+      </div>
+      <div class="hs-stat">
+        <span class="hs-value" id="ss-time">0h</span>
+        <span class="hs-label">Total Time</span>
+      </div>
+    </div>
+
+    <div class="scan-hint" id="swim-log-hint" style="margin-top:14px">
+      Swims aren't tracked by a device here — tell your coach on the
+      <a href="#" onclick="document.querySelector('[data-tab=&quot;plan&quot;]').click();return false;" style="color:var(--blue)">Plan tab</a>
+      ("swam 2km this morning") and it'll be logged and factored into your plan.
+    </div>
+
+    <div class="history-empty" id="swim-empty" style="display:none">
+      <p>No swims logged yet. Mention one to your coach and it'll appear here.</p>
+    </div>
+
+    <div class="history-list" id="swim-list" style="margin-top:14px"></div>
+
+  </section>
+
+  <!-- ══════════════════════════ STRENGTH TAB ══════════════════════════ -->
+  <section id="tab-strength" class="tab-content">
+
+    <div class="history-header">
+      <h2>Strength</h2>
+      <span class="history-count" id="strength-count"></span>
+    </div>
+
+    <div class="history-summary" id="strength-summary" style="display:none">
+      <div class="hs-stat">
+        <span class="hs-value" id="sts-sessions">0</span>
+        <span class="hs-label">Sessions</span>
+      </div>
+      <div class="hs-stat">
+        <span class="hs-value" id="sts-time">0h</span>
+        <span class="hs-label">Total Time</span>
+      </div>
+      <div class="hs-stat">
+        <span class="hs-value" id="sts-rpe">&mdash;</span>
+        <span class="hs-label">Avg RPE</span>
+      </div>
+    </div>
+
+    <div class="scan-hint" id="strength-log-hint" style="margin-top:14px">
+      Log a session by telling your coach on the
+      <a href="#" onclick="document.querySelector('[data-tab=&quot;plan&quot;]').click();return false;" style="color:var(--blue)">Plan tab</a>
+      ("45 minutes of legs, felt like an 8") — it'll be recorded and used to pace your plan.
+    </div>
+
+    <div class="history-empty" id="strength-empty" style="display:none">
+      <p>No strength sessions logged yet. Mention one to your coach and it'll appear here.</p>
+    </div>
+
+    <div class="history-list" id="strength-list" style="margin-top:14px"></div>
+
+  </section>
+
+
   <!-- ═══════════════════════════ RIDE TAB ═══════════════════════════ -->
   <section id="tab-ride" class="tab-content">
 
@@ -556,7 +633,7 @@
       <p class="auth-tagline">Structured indoor training. Free, forever.</p>
     </div>
 
-    <div class="auth-tabs">
+    <div class="auth-tabs" id="auth-tabs">
       <button class="auth-tab active" id="auth-login-tab">Sign In</button>
       <button class="auth-tab"        id="auth-register-tab">Create Account</button>
     </div>
@@ -573,6 +650,7 @@
       </div>
       <p id="auth-login-error" class="auth-error"></p>
       <button type="submit" class="btn btn-start" style="width:100%">Sign In</button>
+      <p class="auth-forgot"><a href="#" id="auth-forgot-link">Forgot password?</a></p>
     </form>
 
     <!-- Register -->
@@ -593,6 +671,30 @@
       <button type="submit" class="btn btn-start" style="width:100%">Create Account</button>
     </form>
 
+    <!-- Forgot password -->
+    <form id="auth-forgot-form" class="auth-form" style="display:none">
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="auth-forgot-email" autocomplete="email" required>
+      </div>
+      <p id="auth-forgot-error" class="auth-error"></p>
+      <p id="auth-forgot-success" class="auth-success" style="display:none">
+        Check your email for a reset link.
+      </p>
+      <button type="submit" class="btn btn-start" style="width:100%">Send Reset Link</button>
+      <p class="auth-forgot"><a href="#" id="auth-forgot-cancel">← Back to sign in</a></p>
+    </form>
+
+    <!-- Set new password (landed here via a reset-link) -->
+    <form id="auth-reset-form" class="auth-form" style="display:none">
+      <div class="form-group">
+        <label>New password <span class="hint">(8+ characters)</span></label>
+        <input type="password" id="auth-reset-password" autocomplete="new-password" required minlength="8">
+      </div>
+      <p id="auth-reset-error" class="auth-error"></p>
+      <button type="submit" class="btn btn-start" style="width:100%">Set New Password</button>
+    </form>
+
   </div>
 </div>
 
@@ -602,6 +704,8 @@
 <script src="/js/creator.js"></script>
 <script src="/js/planner.js"></script>
 <script src="/js/run.js"></script>
+<script src="/js/swim.js"></script>
+<script src="/js/strength.js"></script>
 <script src="/js/dashboard.js"></script>
 <script src="/js/coach.js"></script>
 <script src="/js/app.js"></script>

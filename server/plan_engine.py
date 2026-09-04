@@ -1,8 +1,8 @@
 """
 FreeTrain adaptive training plan engine.
 
-Generates periodized 6-week plans and adapts upcoming workout
-intensities based on ride adherence.
+Generates periodized plans of any length (1-24 weeks) and adapts
+upcoming workout intensities based on ride adherence.
 """
 
 from __future__ import annotations
@@ -10,6 +10,13 @@ from __future__ import annotations
 import copy
 from datetime import date, timedelta
 from typing import Optional
+
+# Plan length. The session-type templates below are authored as six
+# weeks; _resequence_weeks() re-flows them to any requested length.
+_TEMPLATE_WEEKS = 6
+DEFAULT_WEEKS   = 6
+MIN_WEEKS       = 1
+MAX_WEEKS       = 24
 
 
 # ── Low-level interval primitives ─────────────────────────────────────
@@ -283,32 +290,59 @@ _DAY_PATTERNS: dict[int, list[int]] = {
 
 # ── Public API ────────────────────────────────────────────────────────
 
+def _resequence_weeks(session_types: list[str], base_days: int, weeks: int) -> list[str]:
+    """
+    Re-sequence a 6-week template into an arbitrary number of weeks while
+    preserving its 3:1 periodization: every 4th week is the template's
+    recovery week, and build weeks walk the template's build weeks in
+    ascending difficulty, holding at the peak week once exhausted.
+
+    At weeks=6 this reproduces the original template exactly.
+    """
+    chunks   = [session_types[i * base_days:(i + 1) * base_days] for i in range(_TEMPLATE_WEEKS)]
+    recovery = chunks[3]                                   # W4 in every template
+    build    = [chunks[0], chunks[1], chunks[2], chunks[4], chunks[5]]   # ascending difficulty
+
+    out: list[str] = []
+    bi = 0
+    for i in range(weeks):
+        if i % 4 == 3:
+            out.extend(recovery)
+        else:
+            out.extend(build[min(bi, len(build) - 1)])
+            bi += 1
+    return out
+
+
 def generate_plan(
     goal: str,
     level: str,
     days_per_week: int,
     session_mins: int,
+    weeks: int = DEFAULT_WEEKS,
     start_date: Optional[date] = None,
 ) -> list[tuple[str, dict]]:
     """
-    Return [(date_iso, workout_dict), …] for a 6-week plan.
+    Return [(date_iso, workout_dict), …] for a `weeks`-long plan.
     """
     # Normalise inputs
     goal          = goal if goal in _PLANS else "base_fitness"
     days_per_week = max(3, min(days_per_week, 7))
+    weeks         = max(MIN_WEEKS, min(int(weeks or DEFAULT_WEEKS), MAX_WEEKS))
     level_scale   = {"beginner": 0.85, "intermediate": 1.0, "advanced": 1.15}.get(level, 1.0)
     eff_mins      = max(int(session_mins * level_scale), 30)
 
     # Use the closest template (max 5) and expand to 6/7 by inserting recovery days
     base_days     = min(days_per_week, 5)
     session_types = list(_PLANS[goal].get(base_days) or _PLANS[goal][4])
+    session_types = _resequence_weeks(session_types, base_days, weeks)
 
     if days_per_week > 5:
         extra = days_per_week - 5
         # For each week, insert `extra` recovery/endurance slots at the front
         week_len  = 5
         expanded  = []
-        for w in range(6):
+        for w in range(weeks):
             week = session_types[w * week_len:(w + 1) * week_len]
             # add extra easy sessions before the main block
             additions = (["recovery"] * extra) if w % 4 == 3 else (["endurance_easy"] * extra)
@@ -432,6 +466,11 @@ def compute_adaptation(rides: list[dict]) -> tuple[float, str, str]:
             note += (" You've told me recent sessions felt easy, so intensity is nudged up a bit more."
                       if fb_delta > 0 else
                       " You've flagged recent sessions as tough, so intensity is eased back further.")
+        # Hitting every target doesn't justify more load when the athlete
+        # is telling us it's too hard — negative feedback always wins over
+        # a positive adherence bonus.
+        if fb_delta < 0:
+            factor = min(factor, fb_delta)
 
     factor = max(-0.15, min(0.10, factor))
     status = ("adjusted_up" if factor > 0.02
