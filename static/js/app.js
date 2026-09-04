@@ -708,9 +708,23 @@ document.addEventListener('DOMContentLoaded', () => {
         window.sendWS({ action: 'get_history' });
         if (window._dashboard) window._dashboard.refresh();
       }
-      if (btn.dataset.tab === 'run') {
+      if (btn.dataset.tab === 'activity') {
+        window.sendWS({ action: 'get_history' });
         window.sendWS({ action: 'get_runs' });
+        window.sendWS({ action: 'get_swims' });
+        window.sendWS({ action: 'get_strength' });
       }
+    });
+  });
+
+  // Activity tab: sub-nav pills switch which discipline's history shows,
+  // independent of the outer Dashboard/Plan/Activity/Workout tab nav.
+  document.querySelectorAll('.activity-subtab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.activity-subtab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.activity-subpanel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelector(`.activity-subpanel[data-subtab-panel="${btn.dataset.subtab}"]`)?.classList.add('active');
     });
   });
 

@@ -1407,9 +1407,26 @@ document.addEventListener('DOMContentLoaded', () => {
         renderHistory(_rides);
         if (window._dashboard) window._dashboard.refresh();
       }
-      if (btn.dataset.tab === 'run' && window._runTab) {
-        window._runTab.update({ runs: _runs });
+      if (btn.dataset.tab === 'activity') {
+        // Data's already resident (kept current via the _sync*Views
+        // functions) — just re-render in case a panel was updated while
+        // hidden and missed a redraw.
+        renderHistory(_rides);
+        if (window._runTab)      window._runTab.update({ runs: _runs });
+        if (window._swimTab)     window._swimTab.update({ swims: _swims });
+        if (window._strengthTab) window._strengthTab.update({ sessions: _strength });
       }
+    });
+  });
+
+  // Activity tab: sub-nav pills switch which discipline's history shows,
+  // independent of the outer Dashboard/Plan/Activity/Workout tab nav.
+  document.querySelectorAll('.activity-subtab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.activity-subtab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.activity-subpanel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelector(`.activity-subpanel[data-subtab-panel="${btn.dataset.subtab}"]`)?.classList.add('active');
     });
   });
 

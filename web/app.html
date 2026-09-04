@@ -18,10 +18,8 @@
   <nav class="tab-nav">
     <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
     <button class="tab-btn"        data-tab="plan">Plan</button>
-    <button class="tab-btn"        data-tab="run">Run</button>
-    <button class="tab-btn"        data-tab="ride">Ride</button>
-    <button class="tab-btn"        data-tab="swim">Swim</button>
-    <button class="tab-btn"        data-tab="strength">Strength</button>
+    <button class="tab-btn"        data-tab="activity">Activity</button>
+    <button class="tab-btn"        data-tab="ride">Workout</button>
     <button class="tab-btn"        data-tab="create">Create</button>
     <button class="tab-btn"        data-tab="devices">Devices</button>
   </nav>
@@ -45,7 +43,6 @@
 
     <div class="history-header">
       <h2>Dashboard</h2>
-      <span class="history-count" id="history-count"></span>
     </div>
 
 
@@ -57,26 +54,6 @@
     </div>
 
     <h3 class="dash-section-title">🚴 Cycling</h3>
-
-    <!-- Career totals -->
-    <div class="history-summary" id="history-summary" style="display:none">
-      <div class="hs-stat">
-        <span class="hs-value" id="hs-rides">0</span>
-        <span class="hs-label">Rides</span>
-      </div>
-      <div class="hs-stat">
-        <span class="hs-value" id="hs-time">0h</span>
-        <span class="hs-label">Total Time</span>
-      </div>
-      <div class="hs-stat">
-        <span class="hs-value" id="hs-tss">0</span>
-        <span class="hs-label">Total TSS</span>
-      </div>
-      <div class="hs-stat">
-        <span class="hs-value" id="hs-completion">—</span>
-        <span class="hs-label">Completion Rate</span>
-      </div>
-    </div>
 
     <!-- Charts -->
     <div class="dash-charts-grid">
@@ -183,15 +160,6 @@
 
     </div>
 
-    <!-- Recent activity -->
-    <h3 class="dash-section-title">Recent Rides</h3>
-
-    <div class="history-empty" id="history-empty" style="display:none">
-      <p>No rides yet. Complete a workout and it will appear here.</p>
-    </div>
-
-    <div class="history-list" id="history-list"></div>
-
   </section>
 
   <!-- ════════════════════════════ PLAN TAB ════════════════════════════ -->
@@ -250,121 +218,167 @@
   </section>
 
   <!-- ═══════════════════════════ RUN TAB ═══════════════════════════ -->
-  <section id="tab-run" class="tab-content">
+  <!-- ══════════════════════════ ACTIVITY TAB ═══════════════════════════
+       Consolidated history for all four disciplines. Cycling execution
+       itself lives on the separate Workout tab; this is purely the log. -->
+  <section id="tab-activity" class="tab-content">
 
-    <div class="history-header">
-      <h2>Runs</h2>
-      <span class="history-count" id="run-count"></span>
+    <div class="activity-subnav" id="activity-subnav">
+      <button class="activity-subtab-btn active" data-subtab="cycling">🚴 Cycling</button>
+      <button class="activity-subtab-btn"        data-subtab="running">🏃 Running</button>
+      <button class="activity-subtab-btn"        data-subtab="swimming">🏊 Swimming</button>
+      <button class="activity-subtab-btn"        data-subtab="strength">🏋 Strength</button>
     </div>
+
+    <!-- Cycling -->
+    <div class="activity-subpanel active" data-subtab-panel="cycling">
+      <div class="history-header">
+        <h2>Cycling</h2>
+        <span class="history-count" id="history-count"></span>
+      </div>
 
     <!-- Career totals -->
-    <div class="history-summary" id="run-summary" style="display:none">
+    <div class="history-summary" id="history-summary" style="display:none">
       <div class="hs-stat">
-        <span class="hs-value" id="rs-runs">0</span>
-        <span class="hs-label">Runs</span>
+        <span class="hs-value" id="hs-rides">0</span>
+        <span class="hs-label">Rides</span>
       </div>
       <div class="hs-stat">
-        <span class="hs-value" id="rs-miles">0</span>
-        <span class="hs-label">Total Miles</span>
-      </div>
-      <div class="hs-stat">
-        <span class="hs-value" id="rs-vert">0</span>
-        <span class="hs-label">Total Vert (ft)</span>
-      </div>
-      <div class="hs-stat">
-        <span class="hs-value" id="rs-time">0h</span>
-        <span class="hs-label">Total Time</span>
-      </div>
-    </div>
-
-    <div class="scan-hint" id="run-strava-hint" style="margin-top:14px">
-      Runs are imported automatically from Strava — connect your account on the
-      <a href="#" onclick="document.querySelector('[data-tab=&quot;devices&quot;]').click();return false;" style="color:var(--blue)">Devices tab</a>
-      to start tracking mileage, elevation, and pace here.
-    </div>
-
-    <div class="history-empty" id="run-empty" style="display:none">
-      <p>No runs yet. Connect Strava and log a run — it'll show up here automatically.</p>
-    </div>
-
-    <div class="history-list" id="run-list" style="margin-top:14px"></div>
-
-  </section>
-
-  <!-- ════════════════════════════ SWIM TAB ════════════════════════════ -->
-  <section id="tab-swim" class="tab-content">
-
-    <div class="history-header">
-      <h2>Swims</h2>
-      <span class="history-count" id="swim-count"></span>
-    </div>
-
-    <div class="history-summary" id="swim-summary" style="display:none">
-      <div class="hs-stat">
-        <span class="hs-value" id="ss-swims">0</span>
-        <span class="hs-label">Swims</span>
-      </div>
-      <div class="hs-stat">
-        <span class="hs-value" id="ss-distance">0</span>
-        <span class="hs-label">Total Distance</span>
-      </div>
-      <div class="hs-stat">
-        <span class="hs-value" id="ss-time">0h</span>
-        <span class="hs-label">Total Time</span>
-      </div>
-    </div>
-
-    <div class="scan-hint" id="swim-log-hint" style="margin-top:14px">
-      Swims aren't tracked by a device here — tell your coach on the
-      <a href="#" onclick="document.querySelector('[data-tab=&quot;plan&quot;]').click();return false;" style="color:var(--blue)">Plan tab</a>
-      ("swam 2km this morning") and it'll be logged and factored into your plan.
-    </div>
-
-    <div class="history-empty" id="swim-empty" style="display:none">
-      <p>No swims logged yet. Mention one to your coach and it'll appear here.</p>
-    </div>
-
-    <div class="history-list" id="swim-list" style="margin-top:14px"></div>
-
-  </section>
-
-  <!-- ══════════════════════════ STRENGTH TAB ══════════════════════════ -->
-  <section id="tab-strength" class="tab-content">
-
-    <div class="history-header">
-      <h2>Strength</h2>
-      <span class="history-count" id="strength-count"></span>
-    </div>
-
-    <div class="history-summary" id="strength-summary" style="display:none">
-      <div class="hs-stat">
-        <span class="hs-value" id="sts-sessions">0</span>
-        <span class="hs-label">Sessions</span>
-      </div>
-      <div class="hs-stat">
-        <span class="hs-value" id="sts-time">0h</span>
+        <span class="hs-value" id="hs-time">0h</span>
         <span class="hs-label">Total Time</span>
       </div>
       <div class="hs-stat">
-        <span class="hs-value" id="sts-rpe">&mdash;</span>
-        <span class="hs-label">Avg RPE</span>
+        <span class="hs-value" id="hs-tss">0</span>
+        <span class="hs-label">Total TSS</span>
+      </div>
+      <div class="hs-stat">
+        <span class="hs-value" id="hs-completion">—</span>
+        <span class="hs-label">Completion Rate</span>
       </div>
     </div>
 
-    <div class="scan-hint" id="strength-log-hint" style="margin-top:14px">
-      Log a session by telling your coach on the
-      <a href="#" onclick="document.querySelector('[data-tab=&quot;plan&quot;]').click();return false;" style="color:var(--blue)">Plan tab</a>
-      ("45 minutes of legs, felt like an 8") — it'll be recorded and used to pace your plan.
+    <!-- Recent activity -->
+    <h3 class="dash-section-title">Recent Rides</h3>
+
+    <div class="history-empty" id="history-empty" style="display:none">
+      <p>No rides yet. Complete a workout and it will appear here.</p>
     </div>
 
-    <div class="history-empty" id="strength-empty" style="display:none">
-      <p>No strength sessions logged yet. Mention one to your coach and it'll appear here.</p>
+    <div class="history-list" id="history-list"></div>
+
     </div>
 
-    <div class="history-list" id="strength-list" style="margin-top:14px"></div>
+    <!-- Running -->
+    <div class="activity-subpanel" data-subtab-panel="running">
+      <div class="history-header">
+        <h2>Runs</h2>
+        <span class="history-count" id="run-count"></span>
+      </div>
+
+      <!-- Career totals -->
+      <div class="history-summary" id="run-summary" style="display:none">
+        <div class="hs-stat">
+          <span class="hs-value" id="rs-runs">0</span>
+          <span class="hs-label">Runs</span>
+        </div>
+        <div class="hs-stat">
+          <span class="hs-value" id="rs-miles">0</span>
+          <span class="hs-label">Total Miles</span>
+        </div>
+        <div class="hs-stat">
+          <span class="hs-value" id="rs-vert">0</span>
+          <span class="hs-label">Total Vert (ft)</span>
+        </div>
+        <div class="hs-stat">
+          <span class="hs-value" id="rs-time">0h</span>
+          <span class="hs-label">Total Time</span>
+        </div>
+      </div>
+
+      <div class="scan-hint" id="run-strava-hint" style="margin-top:14px">
+        Runs are imported automatically from Strava — connect your account on the
+        <a href="#" onclick="document.querySelector('[data-tab=&quot;devices&quot;]').click();return false;" style="color:var(--blue)">Devices tab</a>
+        to start tracking mileage, elevation, and pace here.
+      </div>
+
+      <div class="history-empty" id="run-empty" style="display:none">
+        <p>No runs yet. Connect Strava and log a run — it'll show up here automatically.</p>
+      </div>
+
+      <div class="history-list" id="run-list" style="margin-top:14px"></div>
+    </div>
+
+    <!-- Swimming -->
+    <div class="activity-subpanel" data-subtab-panel="swimming">
+      <div class="history-header">
+        <h2>Swims</h2>
+        <span class="history-count" id="swim-count"></span>
+      </div>
+
+      <div class="history-summary" id="swim-summary" style="display:none">
+        <div class="hs-stat">
+          <span class="hs-value" id="ss-swims">0</span>
+          <span class="hs-label">Swims</span>
+        </div>
+        <div class="hs-stat">
+          <span class="hs-value" id="ss-distance">0</span>
+          <span class="hs-label">Total Distance</span>
+        </div>
+        <div class="hs-stat">
+          <span class="hs-value" id="ss-time">0h</span>
+          <span class="hs-label">Total Time</span>
+        </div>
+      </div>
+
+      <div class="scan-hint" id="swim-log-hint" style="margin-top:14px">
+        Swims aren't tracked by a device here — tell your coach on the
+        <a href="#" onclick="document.querySelector('[data-tab=&quot;plan&quot;]').click();return false;" style="color:var(--blue)">Plan tab</a>
+        ("swam 2km this morning") and it'll be logged and factored into your plan.
+      </div>
+
+      <div class="history-empty" id="swim-empty" style="display:none">
+        <p>No swims logged yet. Mention one to your coach and it'll appear here.</p>
+      </div>
+
+      <div class="history-list" id="swim-list" style="margin-top:14px"></div>
+    </div>
+
+    <!-- Strength -->
+    <div class="activity-subpanel" data-subtab-panel="strength">
+      <div class="history-header">
+        <h2>Strength</h2>
+        <span class="history-count" id="strength-count"></span>
+      </div>
+
+      <div class="history-summary" id="strength-summary" style="display:none">
+        <div class="hs-stat">
+          <span class="hs-value" id="sts-sessions">0</span>
+          <span class="hs-label">Sessions</span>
+        </div>
+        <div class="hs-stat">
+          <span class="hs-value" id="sts-time">0h</span>
+          <span class="hs-label">Total Time</span>
+        </div>
+        <div class="hs-stat">
+          <span class="hs-value" id="sts-rpe">&mdash;</span>
+          <span class="hs-label">Avg RPE</span>
+        </div>
+      </div>
+
+      <div class="scan-hint" id="strength-log-hint" style="margin-top:14px">
+        Log a session by telling your coach on the
+        <a href="#" onclick="document.querySelector('[data-tab=&quot;plan&quot;]').click();return false;" style="color:var(--blue)">Plan tab</a>
+        ("45 minutes of legs, felt like an 8") — it'll be recorded and used to pace your plan.
+      </div>
+
+      <div class="history-empty" id="strength-empty" style="display:none">
+        <p>No strength sessions logged yet. Mention one to your coach and it'll appear here.</p>
+      </div>
+
+      <div class="history-list" id="strength-list" style="margin-top:14px"></div>
+    </div>
 
   </section>
-
 
   <!-- ═══════════════════════════ RIDE TAB ═══════════════════════════ -->
   <section id="tab-ride" class="tab-content">

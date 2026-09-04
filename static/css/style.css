@@ -1037,6 +1037,35 @@ input::placeholder { color: var(--text-3); }
   text-align: right;
 }
 
+/* ─── Activity tab — sub-nav pills over Cycling/Running/Swimming/Strength ─── */
+.activity-subnav {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--gb);
+  padding-bottom: 14px;
+}
+.activity-subtab-btn {
+  background: var(--glass);
+  border: 1px solid var(--gb);
+  color: var(--text-2);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: background .12s, border-color .12s, color .12s;
+}
+.activity-subtab-btn:hover { color: var(--text); border-color: var(--gb-hi); }
+.activity-subtab-btn.active {
+  background: var(--text);
+  color: #fff;
+  border-color: var(--text);
+}
+.activity-subpanel { display: none; }
+.activity-subpanel.active { display: block; }
+
 .history-empty {
   text-align: center;
   padding: 60px 20px;
@@ -1137,6 +1166,9 @@ input::placeholder { color: var(--text-3); }
   grid-template-columns: repeat(7, 1fr);
   gap: 3px;
   margin-bottom: 4px;
+  /* Must size identically to .calendar-grid or the day headers drift
+     out of alignment with the cells below them. */
+  min-width: 0;
 }
 .cal-weekday-row > div {
   text-align: center;
@@ -1152,10 +1184,15 @@ input::placeholder { color: var(--text-3); }
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 3px;
+  min-width: 0;
 }
 
 .cal-cell {
   min-height: 82px;
+  /* Grid/flex items default to min-width:auto, so a nowrap chip inside
+     would force this cell — and the whole 7-column grid — wider than its
+     track. Explicit 0 lets chips truncate instead of blowing out layout. */
+  min-width: 0;
   background: var(--glass);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
@@ -1201,6 +1238,11 @@ input::placeholder { color: var(--text-3); }
   overflow: hidden;
   text-overflow: ellipsis;
   line-height: 1.45;
+  /* Without min-width:0 the nowrap text sets this flex item's minimum
+     size, so it grows the cell instead of truncating. */
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 .cal-chip-run { background: var(--run); margin-top: 2px; }
 .cal-chip-swim { background: var(--swim); margin-top: 2px; }
@@ -1392,11 +1434,16 @@ input::placeholder { color: var(--text-3); }
 /* ─── Coach chat (Plan tab) ──────────────────────────────────────── */
 .coach-layout {
   display: grid;
-  grid-template-columns: 360px 1fr;
+  grid-template-columns: 360px minmax(0, 1fr);
   gap: 20px;
   align-items: start;
 }
-@media (max-width: 900px) { .coach-layout { grid-template-columns: 1fr; } }
+/* A bare `1fr` track is really minmax(auto, 1fr) and refuses to shrink
+   below its content's min-content width — which is what pushed the
+   calendar off the page. minmax(0, 1fr) plus min-width:0 on the children
+   lets the calendar size to the space actually available. */
+.coach-layout > * { min-width: 0; }
+@media (max-width: 900px) { .coach-layout { grid-template-columns: minmax(0, 1fr); } }
 
 .coach-panel {
   background: var(--glass);
