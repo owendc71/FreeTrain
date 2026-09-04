@@ -1,30 +1,104 @@
 """Supabase client, JWT verification, and async data helpers."""
 import asyncio
+import logging
 import os
 from typing import Optional
 
+import httpx
 from jose import JWTError, jwt
 from supabase import Client, create_client
 
-# ── Env vars (all required) ────────────────────────────────────────
+log = logging.getLogger("freetrain.supabase")
+
+# ── Env vars ───────────────────────────────────────────────────────
 SUPABASE_URL         = os.environ["SUPABASE_URL"]
 SUPABASE_SERVICE_KEY = os.environ["SUPABASE_SERVICE_KEY"]   # server-only, never sent to browser
-SUPABASE_JWT_SECRET  = os.environ["SUPABASE_JWT_SECRET"]    # Settings → API → JWT Settings
 SUPABASE_ANON_KEY    = os.environ["SUPABASE_ANON_KEY"]      # safe to expose to browser
+
+# Optional: only used to verify legacy HS256 tokens. Projects migrated to
+# asymmetric JWT signing keys don't need it at all.
+SUPABASE_JWT_SECRET  = os.environ.get("SUPABASE_JWT_SECRET", "")
 
 # Service-role client bypasses RLS; we enforce user-scoping in every query.
 db: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 
 # ── Auth ───────────────────────────────────────────────────────────
+# Supabase moved from one shared HS256 secret to per-project asymmetric
+# JWT signing keys (ES256), published at /auth/v1/.well-known/jwks.json.
+# Once a project migrates, new access tokens are signed with the
+# asymmetric key and the legacy secret can no longer verify them — but
+# unexpired legacy tokens stay valid through the grace period, so both
+# paths are supported here. Verifying against JWKS also keeps the Auth
+# server out of the request hot path.
 
-def verify_token(token: str) -> Optional[str]:
-    """Decode a Supabase JWT. Returns user_id (sub) or None."""
+_JWKS_URL = f"{SUPABASE_URL}/auth/v1/.well-known/jwks.json"
+_jwks_cache: dict = {"keys": []}
+_jwks_lock = asyncio.Lock()
+
+
+async def _get_jwks(force: bool = False) -> dict:
+    """Project JWKS, cached. Refetched when a token presents an unseen kid."""
+    global _jwks_cache
+    async with _jwks_lock:
+        if _jwks_cache.get("keys") and not force:
+            return _jwks_cache
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.get(_JWKS_URL)
+            r.raise_for_status()
+            _jwks_cache = r.json()
+        return _jwks_cache
+
+
+async def verify_token(token: str) -> Optional[str]:
+    """Verify a Supabase access token. Returns user_id (sub) or None."""
+    try:
+        header = jwt.get_unverified_header(token)
+    except JWTError:
+        return None
+
+    alg = header.get("alg") or ""
+
+    # ── Legacy symmetric tokens (pre-migration, or within grace period) ──
+    if alg == "HS256":
+        if not SUPABASE_JWT_SECRET:
+            return None
+        try:
+            payload = jwt.decode(
+                token,
+                SUPABASE_JWT_SECRET,
+                algorithms=["HS256"],
+                audience="authenticated",
+            )
+            return payload.get("sub")
+        except JWTError:
+            return None
+
+    # ── Asymmetric tokens (ES256/RS256) verified against the JWKS ──
+    kid = header.get("kid")
+    if not kid:
+        return None
+
+    key = None
+    for attempt in (False, True):          # retry once with a fresh fetch
+        try:
+            jwks = await _get_jwks(force=attempt)
+        except Exception as exc:           # network/JWKS outage
+            log.warning("JWKS fetch failed: %s", exc)
+            return None
+        key = next((k for k in jwks.get("keys", []) if k.get("kid") == kid), None)
+        if key:
+            break
+
+    if key is None:
+        log.warning("No JWKS key matches token kid=%s", kid)
+        return None
+
     try:
         payload = jwt.decode(
             token,
-            SUPABASE_JWT_SECRET,
-            algorithms=["HS256"],
+            key,
+            algorithms=[alg or "ES256"],
             audience="authenticated",
         )
         return payload.get("sub")

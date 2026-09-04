@@ -76,7 +76,7 @@ async def strava_callback(code: str = Query(default=None),
                           error: str = Query(default=None)):
     if error or not code:
         return RedirectResponse("/?strava=denied")
-    user_id = verify_token(state) if state else None
+    user_id = await verify_token(state) if state else None
     if not user_id:
         return RedirectResponse("/?strava=error")
     try:
@@ -580,7 +580,7 @@ async def _broadcast(user_id: str, msg: dict):
 
 @app.websocket("/ws")
 async def ws_endpoint(ws: WebSocket, token: str = Query(default=None)):
-    user_id = verify_token(token) if token else None
+    user_id = await verify_token(token) if token else None
     if not user_id:
         await ws.close(code=4001)
         return
