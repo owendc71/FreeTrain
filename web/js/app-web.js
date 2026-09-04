@@ -49,6 +49,7 @@ window.sendWS = msg => _handleAction(msg).catch(err => {
 function _syncDashboard() {
   if (window._dashboard) window._dashboard.update({
     rides: _rides, plan: _plan, runs: _runs, runPlan: _runPlan,
+    workouts: state.workouts, swimPlan: _swimPlan, strengthPlan: _strengthPlan,
   });
 }
 
@@ -62,11 +63,13 @@ function _syncRunViews() {
 function _syncSwimViews() {
   if (window._planner)  window._planner.update({ swimPlan: _swimPlan, swims: _swims });
   if (window._swimTab)  window._swimTab.update({ swims: _swims });
+  _syncDashboard();
 }
 
 function _syncStrengthViews() {
   if (window._planner)      window._planner.update({ strengthPlan: _strengthPlan, strength: _strength });
   if (window._strengthTab)  window._strengthTab.update({ sessions: _strength });
+  _syncDashboard();
 }
 
 // ── Startup ───────────────────────────────────────────────────────

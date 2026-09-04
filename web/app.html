@@ -48,7 +48,15 @@
       <span class="history-count" id="history-count"></span>
     </div>
 
-    <h3 class="dash-section-title dash-section-title-first">🚴 Cycling</h3>
+
+    <h3 class="dash-section-title dash-section-title-first">📅 Upcoming</h3>
+
+    <div class="upcoming-list" id="upcoming-list" style="display:none"></div>
+    <div class="history-empty" id="upcoming-empty" style="display:none">
+      <p>Nothing scheduled yet — build a plan on the Plan tab.</p>
+    </div>
+
+    <h3 class="dash-section-title">🚴 Cycling</h3>
 
     <!-- Career totals -->
     <div class="history-summary" id="history-summary" style="display:none">
@@ -237,31 +245,6 @@
         <div class="calendar-grid" id="calendar-grid"></div>
       </div>
 
-    </div>
-
-    <!-- Day planning modal -->
-    <div class="day-modal-overlay" id="day-modal" style="display:none">
-      <div class="day-modal-card">
-        <h3 id="day-modal-title"></h3>
-        <div class="day-details" id="day-details">
-          <div class="chart-wrap day-chart-wrap">
-            <canvas id="day-workout-canvas"></canvas>
-            <div class="chart-placeholder" id="day-chart-placeholder"><p>Rest day</p></div>
-          </div>
-          <div class="day-workout-meta" id="day-workout-meta"></div>
-        </div>
-        <div class="form-group">
-          <label>Workout</label>
-          <select id="day-workout-select">
-            <option value="">— Rest Day —</option>
-          </select>
-        </div>
-        <div class="day-modal-actions">
-          <button class="btn btn-start" id="day-ride-btn" style="display:none">▶ Ride Now</button>
-          <button class="btn btn-start" id="day-save-btn">Save</button>
-          <button class="btn btn-adj"   id="day-cancel-btn">Cancel</button>
-        </div>
-      </div>
     </div>
 
   </section>
@@ -616,6 +599,44 @@
     </div>
   </section>
 </main>
+
+    <!-- Day planning modal -->
+    <div class="day-modal-overlay" id="day-modal" style="display:none">
+      <div class="day-modal-card">
+        <h3 id="day-modal-title"></h3>
+        <div class="day-details" id="day-details">
+          <div class="chart-wrap day-chart-wrap">
+            <canvas id="day-workout-canvas"></canvas>
+            <div class="chart-placeholder" id="day-chart-placeholder"><p>Rest day</p></div>
+          </div>
+          <div class="day-workout-meta" id="day-workout-meta"></div>
+        </div>
+        <div class="form-group">
+          <label>Workout</label>
+          <select id="day-workout-select">
+            <option value="">— Rest Day —</option>
+          </select>
+        </div>
+        <div class="day-modal-actions">
+          <button class="btn btn-start" id="day-ride-btn" style="display:none">▶ Ride Now</button>
+          <button class="btn btn-start" id="day-save-btn">Save</button>
+          <button class="btn btn-adj"   id="day-cancel-btn">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+<!-- Read-only workout/session detail popup — run/swim/strength calendar
+     entries and Dashboard "Upcoming" cards. Lives outside every tab-content
+     section (like day-modal) so it renders no matter which tab is active. -->
+<div class="day-modal-overlay" id="entry-detail-modal" style="display:none">
+  <div class="day-modal-card">
+    <h3 id="entry-detail-title"></h3>
+    <div class="entry-detail-rows" id="entry-detail-body"></div>
+    <div class="day-modal-actions">
+      <button class="btn btn-adj" id="entry-detail-close">Close</button>
+    </div>
+  </div>
+</div>
 
 <div class="toast" id="toast"></div>
 

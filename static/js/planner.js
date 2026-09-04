@@ -86,7 +86,7 @@ class CalendarPlanner {
         cell.appendChild(chip);
       }
 
-      // Planned run chip (read-only — managed from the Run tab)
+      // Planned run chip — click for details (read-only; managed from the coach chat)
       const runEntry = this._runPlan[dateStr];
       if (runEntry) {
         const chip = document.createElement('div');
@@ -94,10 +94,14 @@ class CalendarPlanner {
         const label = (typeof RUN_TYPE_LABELS !== 'undefined' && RUN_TYPE_LABELS[runEntry.run_type]) || runEntry.run_type;
         const miles = runEntry.target_distance_m ? (runEntry.target_distance_m / 1609.34).toFixed(1) : null;
         chip.textContent = `🏃 ${label}${miles ? ` · ${miles}mi` : ''}`;
+        chip.addEventListener('click', e => {
+          e.stopPropagation();
+          this._openEntryModal('run', dateStr, runEntry);
+        });
         cell.appendChild(chip);
       }
 
-      // Planned swim chip (read-only — managed from the coach chat)
+      // Planned swim chip — click for details (read-only — managed from the coach chat)
       const swimEntry = this._swimPlan[dateStr];
       if (swimEntry) {
         const chip = document.createElement('div');
@@ -109,10 +113,14 @@ class CalendarPlanner {
               : `${Math.round(swimEntry.target_distance_m)}m`)
           : null;
         chip.textContent = `🏊 ${label}${dist ? ` · ${dist}` : ''}`;
+        chip.addEventListener('click', e => {
+          e.stopPropagation();
+          this._openEntryModal('swim', dateStr, swimEntry);
+        });
         cell.appendChild(chip);
       }
 
-      // Planned strength chip
+      // Planned strength chip — click for details
       const strengthEntry = this._strengthPlan[dateStr];
       if (strengthEntry) {
         const chip = document.createElement('div');
@@ -120,6 +128,10 @@ class CalendarPlanner {
         const label = (typeof STRENGTH_FOCUS_LABELS !== 'undefined' && STRENGTH_FOCUS_LABELS[strengthEntry.focus]) || strengthEntry.focus;
         const mins  = strengthEntry.target_duration_min ? ` · ${Math.round(strengthEntry.target_duration_min)}min` : '';
         chip.textContent = `🏋 ${label}${mins}`;
+        chip.addEventListener('click', e => {
+          e.stopPropagation();
+          this._openEntryModal('strength', dateStr, strengthEntry);
+        });
         cell.appendChild(chip);
       }
 
@@ -248,6 +260,83 @@ class CalendarPlanner {
     this._selDate = null;
   }
 
+  // Public dispatcher — lets other views (e.g. the Dashboard's "Upcoming"
+  // list) open the right detail popup for a scheduled item without
+  // knowing which modal each discipline uses.
+  openWorkoutDetail(disciplineKey, dateStr, entry) {
+    if (disciplineKey === 'bike') { this._openModal(dateStr); return; }
+    this._openEntryModal(disciplineKey, dateStr, entry);
+  }
+
+  // Read-only detail popup for run/swim/strength calendar entries — these
+  // have no per-day editor (unlike cycling's day-modal), just a summary.
+  _openEntryModal(kind, dateStr, entry) {
+    const modal = document.getElementById('entry-detail-modal');
+    const title = document.getElementById('entry-detail-title');
+    const body  = document.getElementById('entry-detail-body');
+    if (!modal || !title || !body || !entry) return;
+
+    const d = new Date(dateStr + 'T12:00:00');
+    const dateLabel = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+
+    let icon = '', rows = [];
+    if (kind === 'run') {
+      icon = '🏃';
+      const label = (typeof RUN_TYPE_LABELS !== 'undefined' && RUN_TYPE_LABELS[entry.run_type]) || entry.run_type;
+      rows = [
+        ['Type', label],
+        entry.target_distance_m   && ['Distance', `${(entry.target_distance_m / 1609.34).toFixed(1)} mi`],
+        entry.target_duration_min && ['Duration', fmtTime(Math.round(entry.target_duration_min * 60))],
+        entry.description         && ['Notes', entry.description],
+      ];
+    } else if (kind === 'swim') {
+      icon = '🏊';
+      const label = (typeof SWIM_TYPE_LABELS !== 'undefined' && SWIM_TYPE_LABELS[entry.swim_type]) || entry.swim_type;
+      const dist = entry.target_distance_m
+        ? (entry.target_distance_m >= 1000
+            ? `${(entry.target_distance_m / 1000).toFixed(1)} km`
+            : `${Math.round(entry.target_distance_m)} m`)
+        : null;
+      rows = [
+        ['Type', label],
+        dist                      && ['Distance', dist],
+        entry.target_duration_min && ['Duration', fmtTime(Math.round(entry.target_duration_min * 60))],
+        entry.description         && ['Notes', entry.description],
+      ];
+    } else if (kind === 'strength') {
+      icon = '🏋';
+      const label = (typeof STRENGTH_FOCUS_LABELS !== 'undefined' && STRENGTH_FOCUS_LABELS[entry.focus]) || entry.focus;
+      rows = [
+        ['Focus', label],
+        entry.target_duration_min && ['Duration', fmtTime(Math.round(entry.target_duration_min * 60))],
+        entry.description         && ['Notes', entry.description],
+      ];
+    }
+
+    title.textContent = `${icon} ${dateLabel}`;
+    body.innerHTML = '';
+    rows.filter(Boolean).forEach(([label, value]) => {
+      const row = document.createElement('div');
+      row.className = 'entry-detail-row';
+      const l = document.createElement('span');
+      l.className = 'entry-detail-label';
+      l.textContent = label;
+      const v = document.createElement('span');
+      v.className = 'entry-detail-value';
+      v.textContent = value;
+      row.appendChild(l);
+      row.appendChild(v);
+      body.appendChild(row);
+    });
+
+    modal.style.display = 'flex';
+  }
+
+  _closeEntryModal() {
+    const modal = document.getElementById('entry-detail-modal');
+    if (modal) modal.style.display = 'none';
+  }
+
   _save() {
     const wid = document.getElementById('day-workout-select').value || null;
     window.sendWS({ action: 'plan_day', date: this._selDate, workout_id: wid });
@@ -304,6 +393,11 @@ class CalendarPlanner {
     // Dismiss modal on backdrop click
     document.getElementById('day-modal').addEventListener('click', e => {
       if (e.target.id === 'day-modal') this._closeModal();
+    });
+
+    document.getElementById('entry-detail-close')?.addEventListener('click', () => this._closeEntryModal());
+    document.getElementById('entry-detail-modal')?.addEventListener('click', e => {
+      if (e.target.id === 'entry-detail-modal') this._closeEntryModal();
     });
   }
 }

@@ -959,6 +959,84 @@ input::placeholder { color: var(--text-3); }
 .dash-section-title-first { margin-top: 4px; }
 .dash-charts-grid-2 { grid-template-columns: 1fr 1fr; }
 
+/* ─── Upcoming Workouts ──────────────────────────────────────────── */
+.upcoming-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.upcoming-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--glass);
+  border: 1px solid var(--gb);
+  border-radius: var(--r);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  transition: background .12s, border-color .12s;
+}
+.upcoming-card:hover { background: #fff; border-color: var(--gb-hi); }
+.upcoming-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+  width: 30px;
+  text-align: center;
+}
+.upcoming-main { flex: 1; min-width: 0; }
+.upcoming-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.upcoming-sub {
+  font-size: 12px;
+  color: var(--text-3);
+  margin-top: 1px;
+}
+.upcoming-when {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+  background: rgba(0,0,0,0.04);
+  padding: 4px 10px;
+  border-radius: 20px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* ─── Entry detail modal (run/swim/strength calendar + upcoming) ──── */
+.entry-detail-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.entry-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--gb);
+}
+.entry-detail-row:last-child { border-bottom: none; padding-bottom: 0; }
+.entry-detail-label {
+  font-size: 12.5px;
+  color: var(--text-3);
+  font-weight: 500;
+  flex-shrink: 0;
+}
+.entry-detail-value {
+  font-size: 13.5px;
+  color: var(--text);
+  font-weight: 600;
+  text-align: right;
+}
+
 .history-empty {
   text-align: center;
   padding: 60px 20px;

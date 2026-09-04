@@ -48,6 +48,9 @@ class TrainingDashboard {
     this._plan    = {};
     this._runs    = [];
     this._runPlan = {};
+    this._workouts     = [];
+    this._swimPlan     = {};
+    this._strengthPlan = {};
 
     if (this._loadCanvas)    this._setupCanvas(this._loadCanvas,    () => this._drawLoad());
     if (this._adhCanvas)     this._setupCanvas(this._adhCanvas,     () => this._drawAdherence());
@@ -57,11 +60,14 @@ class TrainingDashboard {
 
   // ── Public ─────────────────────────────────────────────────────────
 
-  update({ rides, plan, runs, runPlan } = {}) {
-    if (rides   != null) this._rides   = rides;
-    if (plan    != null) this._plan    = plan;
-    if (runs    != null) this._runs    = runs;
-    if (runPlan != null) this._runPlan = runPlan;
+  update({ rides, plan, runs, runPlan, workouts, swimPlan, strengthPlan } = {}) {
+    if (rides        != null) this._rides        = rides;
+    if (plan         != null) this._plan         = plan;
+    if (runs         != null) this._runs         = runs;
+    if (runPlan      != null) this._runPlan      = runPlan;
+    if (workouts     != null) this._workouts     = workouts;
+    if (swimPlan     != null) this._swimPlan     = swimPlan;
+    if (strengthPlan != null) this._strengthPlan = strengthPlan;
     this.refresh();
   }
 
@@ -75,6 +81,134 @@ class TrainingDashboard {
     this._drawRunLoad();
     this._drawRunAdherence();
     this._renderRunSummary();
+    this._renderUpcoming();
+  }
+
+  // ── Upcoming Workouts ──────────────────────────────────────────────
+  // Merges the next scheduled sessions across all four disciplines into
+  // one chronological list — the calendar shows the whole plan, this is
+  // "what's next" at a glance.
+
+  static UPCOMING_COUNT = 6;
+
+  _renderUpcoming() {
+    const list  = document.getElementById('upcoming-list');
+    const empty = document.getElementById('upcoming-empty');
+    if (!list) return;
+
+    const todayIso = this._isoLocal(new Date());
+    const items = [];
+
+    Object.entries(this._plan).forEach(([dateStr, workoutId]) => {
+      if (!workoutId || dateStr < todayIso) return;
+      const w = this._workouts.find(x => x.id === workoutId);
+      if (!w) return;
+      items.push({
+        date: dateStr, icon: '🚴', kind: 'Cycling', disciplineKey: 'bike', entry: null,
+        title: w.name || 'Ride',
+        detail: w.total_duration ? this._fmtDuration(w.total_duration) : null,
+      });
+    });
+
+    Object.entries(this._runPlan).forEach(([dateStr, e]) => {
+      if (!e || dateStr < todayIso || !(e.target_distance_m || e.target_duration_min)) return;
+      const label = (typeof RUN_TYPE_LABELS !== 'undefined' && RUN_TYPE_LABELS[e.run_type]) || e.run_type || 'Run';
+      const miles = e.target_distance_m ? `${(e.target_distance_m / 1609.34).toFixed(1)} mi` : null;
+      items.push({
+        date: dateStr, icon: '🏃', kind: 'Running', disciplineKey: 'run', entry: e,
+        title: label,
+        detail: miles,
+      });
+    });
+
+    Object.entries(this._swimPlan).forEach(([dateStr, e]) => {
+      if (!e || dateStr < todayIso || !(e.target_distance_m || e.target_duration_min)) return;
+      const label = (typeof SWIM_TYPE_LABELS !== 'undefined' && SWIM_TYPE_LABELS[e.swim_type]) || e.swim_type || 'Swim';
+      const dist = e.target_distance_m
+        ? (e.target_distance_m >= 1000 ? `${(e.target_distance_m / 1000).toFixed(1)} km` : `${Math.round(e.target_distance_m)} m`)
+        : null;
+      items.push({
+        date: dateStr, icon: '🏊', kind: 'Swimming', disciplineKey: 'swim', entry: e,
+        title: label,
+        detail: dist,
+      });
+    });
+
+    Object.entries(this._strengthPlan).forEach(([dateStr, e]) => {
+      if (!e || dateStr < todayIso || !e.target_duration_min) return;
+      const label = (typeof STRENGTH_FOCUS_LABELS !== 'undefined' && STRENGTH_FOCUS_LABELS[e.focus]) || e.focus || 'Strength';
+      items.push({
+        date: dateStr, icon: '🏋', kind: 'Strength', disciplineKey: 'strength', entry: e,
+        title: label,
+        detail: `${Math.round(e.target_duration_min)} min`,
+      });
+    });
+
+    items.sort((a, b) => a.date.localeCompare(b.date) || a.kind.localeCompare(b.kind));
+    const upcoming = items.slice(0, TrainingDashboard.UPCOMING_COUNT);
+
+    if (!upcoming.length) {
+      list.style.display = 'none';
+      if (empty) empty.style.display = 'block';
+      return;
+    }
+    if (empty) empty.style.display = 'none';
+    list.style.display = 'flex';
+
+    list.innerHTML = '';
+    upcoming.forEach(item => list.appendChild(this._buildUpcomingCard(item, todayIso)));
+  }
+
+  _buildUpcomingCard(item, todayIso) {
+    const card = document.createElement('div');
+    card.className = 'upcoming-card';
+    card.addEventListener('click', () => {
+      window._planner?.openWorkoutDetail(item.disciplineKey, item.date, item.entry);
+    });
+
+    const icon = document.createElement('span');
+    icon.className = 'upcoming-icon';
+    icon.textContent = item.icon;
+    card.appendChild(icon);
+
+    const main = document.createElement('div');
+    main.className = 'upcoming-main';
+
+    const title = document.createElement('div');
+    title.className = 'upcoming-title';
+    title.textContent = item.title;
+    main.appendChild(title);
+
+    const sub = document.createElement('div');
+    sub.className = 'upcoming-sub';
+    sub.textContent = [item.kind, item.detail].filter(Boolean).join(' · ');
+    main.appendChild(sub);
+
+    card.appendChild(main);
+
+    const when = document.createElement('span');
+    when.className = 'upcoming-when';
+    when.textContent = this._relativeDayLabel(item.date, todayIso);
+    card.appendChild(when);
+
+    return card;
+  }
+
+  _relativeDayLabel(dateStr, todayIso) {
+    if (dateStr === todayIso) return 'Today';
+    const d = this._parseDate(dateStr);
+    const today = this._parseDate(todayIso);
+    if (!d || !today) return dateStr;
+    const days = Math.round((d - today) / 86400000);
+    if (days === 1) return 'Tomorrow';
+    if (days > 1 && days < 7) return d.toLocaleDateString('en-US', { weekday: 'long' });
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+
+  _fmtDuration(totalSec) {
+    const mins = Math.round(totalSec / 60);
+    const h = Math.floor(mins / 60), m = mins % 60;
+    return h ? `${h}h ${m}m` : `${m} min`;
   }
 
   _renderRunSummary() {

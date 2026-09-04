@@ -87,6 +87,8 @@ function handleMessage(msg) {
       if (window._dashboard) window._dashboard.update({
         rides: msg.rides || [], plan: state.plan,
         runs: msg.runs || [], runPlan: state.runPlan,
+        workouts: msg.workouts || [],
+        swimPlan: msg.swim_plan || {}, strengthPlan: msg.strength_plan || {},
       });
       if (window._runTab) window._runTab.update({ runs: msg.runs || [] });
       if (window._swimTab) window._swimTab.update({ swims: msg.swims || [] });
@@ -105,6 +107,7 @@ function handleMessage(msg) {
     case 'workouts_updated':
       updateWorkoutList(msg.workouts);
       if (window._planner) window._planner.update({ workouts: msg.workouts });
+      if (window._dashboard) window._dashboard.update({ workouts: msg.workouts });
       break;
 
     case 'scanning':
@@ -174,6 +177,7 @@ function handleMessage(msg) {
 
     case 'swim_plan_updated':
       if (window._planner) window._planner.update({ swimPlan: msg.swim_plan || {} });
+      if (window._dashboard) window._dashboard.update({ swimPlan: msg.swim_plan || {} });
       break;
 
     case 'strength_updated':
@@ -183,6 +187,7 @@ function handleMessage(msg) {
 
     case 'strength_plan_updated':
       if (window._planner) window._planner.update({ strengthPlan: msg.strength_plan || {} });
+      if (window._dashboard) window._dashboard.update({ strengthPlan: msg.strength_plan || {} });
       break;
 
     case 'swim_plan_generated':
