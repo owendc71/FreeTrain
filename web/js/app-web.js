@@ -325,6 +325,7 @@ async function _generateSwimPlan(profile) {
     goal:             profile.goal,
     level:            profile.level,
     daysPerWeek:      profile.days_per_week,
+    days:             profile.days,
     weeklyTargetM:    profile.weekly_meters || 6000,
     avgPaceSecPer100m: avgPace,
     weeks:            profile.weeks,
@@ -355,6 +356,7 @@ async function _generateStrengthPlan(profile) {
     goal:        profile.goal,
     level:       profile.level,
     daysPerWeek: profile.days_per_week,
+    days:        profile.days,
     sessionMins: profile.session_mins || 45,
     weeks:       profile.weeks,
   });
@@ -763,7 +765,9 @@ async function _generatePlan(profile) {
     goal:        profile.goal,
     level:       profile.level,
     daysPerWeek: profile.days_per_week,
+    days:        profile.days,
     sessionMins: profile.session_mins,
+    weeks:       profile.weeks,
   });
 
   await _clearGeneratedPlan(true);
@@ -831,8 +835,10 @@ async function _generateRunPlan(profile) {
     goal:            profile.goal,
     level:           profile.level,
     daysPerWeek:     profile.days_per_week,
+    days:            profile.days,
     weeklyTargetM:   (profile.weekly_miles || 15) * 1609.34,
     avgPaceSecPerKm: avgPace,
+    weeks:           profile.weeks,
   });
 
   await _clearGeneratedRunPlan(true);

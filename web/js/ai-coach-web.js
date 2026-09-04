@@ -276,6 +276,7 @@ const AICoachWeb = (() => {
             session_mins:  Math.round((hours * 60) / Math.max(days, 1)),
             ftp,
             weeks,
+            days: _toDayNumbers(input.days),
           });
 
           await seam.saveProfile({
@@ -301,6 +302,7 @@ const AICoachWeb = (() => {
             days_per_week: days,
             weekly_miles:  miles,
             weeks,
+            days: _toDayNumbers(input.days),
           });
 
           await seam.saveProfile({
@@ -325,6 +327,7 @@ const AICoachWeb = (() => {
             days_per_week: days,
             weekly_meters: metres,
             weeks,
+            days: _toDayNumbers(input.days),
           });
 
           await seam.saveProfile({
@@ -349,6 +352,7 @@ const AICoachWeb = (() => {
             days_per_week: days,
             session_mins:  mins,
             weeks,
+            days: _toDayNumbers(input.days),
           });
 
           await seam.saveProfile({
@@ -443,6 +447,16 @@ const AICoachWeb = (() => {
   function _clamp(n, lo, hi) { return Math.min(Math.max(n, lo), hi); }
 
   // Plan length bounds match all four engines.
+  // The model names weekdays; the engines take Python weekday numbers.
+  const _DAY_NUM = { mon: 0, tue: 1, wed: 2, thu: 3, fri: 4, sat: 5, sun: 6 };
+  function _toDayNumbers(days) {
+    if (!Array.isArray(days)) return null;
+    const out = days
+      .map(d => (typeof d === 'number' ? d : _DAY_NUM[String(d).slice(0, 3).toLowerCase()]))
+      .filter(n => Number.isInteger(n));
+    return out.length ? out : null;
+  }
+
   function _clampWeeks(w) {
     const n = parseInt(w, 10);
     return Number.isFinite(n) ? _clamp(n, 1, 24) : 6;

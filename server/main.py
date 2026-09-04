@@ -432,6 +432,7 @@ async def _do_generate_plan(user_id: str, profile: dict) -> int:
         days_per_week = int(profile.get("days_per_week", 4)),
         session_mins  = int(profile.get("session_mins", 60)),
         weeks         = weeks,
+        days          = profile.get("days"),
     )
     await clear_generated_plan(user_id)
     n = await save_generated_plan(user_id, sessions)
@@ -467,6 +468,7 @@ async def _do_generate_run_plan(user_id: str, profile: dict) -> int:
         weekly_target_m     = weekly_target_m,
         avg_pace_sec_per_km = avg_pace,
         weeks               = weeks,
+        days                = profile.get("days"),
     )
     await clear_run_plan(user_id)
     n = await save_run_plan(user_id, sessions)
@@ -499,6 +501,7 @@ async def _do_generate_swim_plan(user_id: str, profile: dict) -> int:
         weekly_target_m       = float(profile.get("weekly_meters", 6000)),
         avg_pace_sec_per_100m = avg_pace,
         weeks                 = weeks,
+        days                  = profile.get("days"),
     )
     await clear_swim_plan(user_id)
     n = await save_swim_plan(user_id, sessions)
@@ -526,6 +529,7 @@ async def _do_generate_strength_plan(user_id: str, profile: dict) -> int:
         days_per_week = int(profile.get("days_per_week", 3)),
         session_mins  = float(profile.get("session_mins", 45)),
         weeks         = weeks,
+        days          = profile.get("days"),
     )
     await clear_strength_plan(user_id)
     n = await save_strength_plan(user_id, sessions)

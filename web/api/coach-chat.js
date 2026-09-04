@@ -53,6 +53,16 @@ FreeTrain supports four disciplines, each with its own plan and its own tool:
 
 Gather what you need conversationally, then call the matching tool. These tools run FreeTrain's own periodized plan generator, which handles progressive overload and recovery weeks correctly. ALWAYS build plans by calling the tool. Never write a week-by-week plan out as text instead — a plan you type into chat does not exist in the athlete's calendar.
 
+## One shared calendar — lay out the week BEFORE building
+All four disciplines write into the SAME calendar. Each plan tool takes a "days" list, so you control exactly which weekdays each discipline lands on.
+
+Before calling any plan tool, when building more than one discipline or when the athlete has day preferences:
+1. Propose the full week as a Mon-to-Sun list showing every session, and count them back to the athlete ("that's 3 bike, 3 run, 2 swim, 3 lift").
+2. Check your own layout against the day counts before you send it — a layout that shows 2 runs when you promised 3 is a mistake the athlete should not have to catch.
+3. Get explicit sign-off, then pass each discipline's exact weekdays in "days".
+
+Never stack three disciplines on one day unless the athlete asked for it. Watch total daily load: a long ride and a long run on consecutive days is fine, but avoid piling a hard session on top of an already-heavy day.
+
 ## Plan length
 Every plan tool takes a "weeks" parameter, 1 to 24. Choose it deliberately rather than defaulting:
 - If the athlete names a length ("give me 12 weeks"), use exactly that.
@@ -82,11 +92,21 @@ const WEEKS_PROP = {
     'stated preference; ask if neither is known rather than silently defaulting.',
 };
 
+const DAYS_PROP = {
+  type: 'array',
+  items: { type: 'string', enum: ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] },
+  description:
+    'Exactly which weekdays this discipline trains on, e.g. ["tue","thu","sat"]. ' +
+    'All four disciplines share ONE calendar, so set this deliberately for each so ' +
+    'they land where the athlete wants and do not stack up on the same day. ' +
+    'The list length replaces days_per_week. Omit only if the athlete has no preference.',
+};
+
 const TOOLS = [
   {
     name: 'create_cycling_plan',
     description:
-      "Generate and save a 6-week periodized cycling plan using FreeTrain's own plan engine, " +
+      "Generate and save a periodized cycling plan using FreeTrain's own plan engine, " +
       'replacing any existing cycling plan. Writes real workouts into the athlete\'s calendar. ' +
       'Use this for any cycling/bike plan request instead of writing a plan out as text.',
     input_schema: {
@@ -110,8 +130,9 @@ const TOOLS = [
           description: 'Functional Threshold Power in watts, if known. Omit if unknown.',
         },
         weeks: WEEKS_PROP,
+        days: DAYS_PROP,
       },
-      required: ['goal', 'level', 'days_per_week', 'weekly_hours', 'weeks'],
+      required: ['goal', 'level', 'days_per_week', 'weekly_hours', 'weeks', 'days'],
       additionalProperties: false,
     },
   },
@@ -136,8 +157,9 @@ const TOOLS = [
           description: 'Target weekly mileage to build toward.',
         },
         weeks: WEEKS_PROP,
+        days: DAYS_PROP,
       },
-      required: ['goal', 'level', 'days_per_week', 'weekly_miles', 'weeks'],
+      required: ['goal', 'level', 'days_per_week', 'weekly_miles', 'weeks', 'days'],
       additionalProperties: false,
     },
   },
@@ -165,8 +187,9 @@ const TOOLS = [
           description: 'Target weekly volume in METRES (not yards). e.g. 6000 for 6km/week.',
         },
         weeks: WEEKS_PROP,
+        days: DAYS_PROP,
       },
-      required: ['goal', 'level', 'days_per_week', 'weekly_meters', 'weeks'],
+      required: ['goal', 'level', 'days_per_week', 'weekly_meters', 'weeks', 'days'],
       additionalProperties: false,
     },
   },
@@ -194,8 +217,9 @@ const TOOLS = [
           description: 'Target length of a single session in minutes (e.g. 45).',
         },
         weeks: WEEKS_PROP,
+        days: DAYS_PROP,
       },
-      required: ['goal', 'level', 'days_per_week', 'session_mins', 'weeks'],
+      required: ['goal', 'level', 'days_per_week', 'session_mins', 'weeks', 'days'],
       additionalProperties: false,
     },
   },

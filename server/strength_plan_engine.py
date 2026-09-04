@@ -19,6 +19,8 @@ from __future__ import annotations
 from datetime import date, timedelta
 from typing import Optional
 
+from run_plan_engine import resolve_days
+
 # Goals that finish with a deload rather than a peak week.
 _TAPER_GOALS = {"event_prep", "peak_strength"}
 
@@ -92,9 +94,10 @@ def generate_strength_plan(
     session_mins: float = DEFAULT_SESSION_MINS,
     weeks: int = DEFAULT_WEEKS,
     start_date: Optional[date] = None,
+    days: Optional[list[int]] = None,
 ) -> list[tuple[str, dict]]:
     """Return [(date_iso, entry_dict), …] for a `weeks`-long strength plan."""
-    days_per_week = max(1, min(days_per_week, 5))
+    day_pattern, days_per_week = resolve_days(days, days_per_week, 1, 5, _DAY_PATTERNS)
     weeks   = max(MIN_WEEKS, min(int(weeks or DEFAULT_WEEKS), MAX_WEEKS))
     pattern_focus = _FOCUS_PATTERNS[days_per_week]
     factors = week_factors(weeks, taper=goal in _TAPER_GOALS)
@@ -117,7 +120,6 @@ def generate_strength_plan(
     days_ahead = (7 - from_date.weekday()) % 7
     start      = from_date + timedelta(days=days_ahead)
 
-    day_pattern = _DAY_PATTERNS[days_per_week]
     dates: list[date] = []
     cursor = start
     while len(dates) < len(entries):

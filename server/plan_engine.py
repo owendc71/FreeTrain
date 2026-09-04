@@ -11,6 +11,8 @@ import copy
 from datetime import date, timedelta
 from typing import Optional
 
+from run_plan_engine import resolve_days
+
 # Plan length. The session-type templates below are authored as six
 # weeks; _resequence_weeks() re-flows them to any requested length.
 _TEMPLATE_WEEKS = 6
@@ -321,13 +323,14 @@ def generate_plan(
     session_mins: int,
     weeks: int = DEFAULT_WEEKS,
     start_date: Optional[date] = None,
+    days: Optional[list[int]] = None,
 ) -> list[tuple[str, dict]]:
     """
     Return [(date_iso, workout_dict), …] for a `weeks`-long plan.
     """
     # Normalise inputs
     goal          = goal if goal in _PLANS else "base_fitness"
-    days_per_week = max(3, min(days_per_week, 7))
+    pattern, days_per_week = resolve_days(days, days_per_week, 3, 7, _DAY_PATTERNS)
     weeks         = max(MIN_WEEKS, min(int(weeks or DEFAULT_WEEKS), MAX_WEEKS))
     level_scale   = {"beginner": 0.85, "intermediate": 1.0, "advanced": 1.15}.get(level, 1.0)
     eff_mins      = max(int(session_mins * level_scale), 30)
@@ -355,7 +358,6 @@ def generate_plan(
     start = from_date + timedelta(days=days_ahead)
 
     # Generate training dates
-    pattern = _DAY_PATTERNS[days_per_week]
     dates: list[date] = []
     cursor = start
     while len(dates) < len(session_types):

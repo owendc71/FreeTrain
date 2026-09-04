@@ -79,6 +79,38 @@ def week_factors(weeks: int, taper: bool) -> list[float]:
 
 # ── Public API ──────────────────────────────────────────────────────
 
+def resolve_days(days, days_per_week: int, lo: int, hi: int,
+                 fallback: dict[int, list[int]]) -> tuple[list[int], int]:
+    """
+    Work out which weekdays to train on.
+
+    An explicit `days` list (Python weekday numbers, Mon=0 … Sun=6) wins over
+    `days_per_week`, so a caller can pin an exact weekly layout — necessary
+    when several disciplines share one calendar and must not collide. Falls
+    back to the discipline's default spacing when `days` is absent.
+    Out-of-range lists are clamped by truncation.
+    """
+    if days:
+        pattern = sorted({int(d) % 7 for d in days})
+        if pattern:
+            n = max(lo, min(len(pattern), hi))
+            pattern = pattern[:n]
+            # If de-duplication left fewer days than this discipline's
+            # minimum, top up with unused weekdays (spread-out first) so
+            # slots-per-week matches days-per-week. Without this the
+            # schedule silently drifts across week boundaries.
+            if len(pattern) < n:
+                for d in (2, 5, 0, 3, 6, 1, 4):
+                    if len(pattern) >= n:
+                        break
+                    if d not in pattern:
+                        pattern.append(d)
+                pattern.sort()
+            return pattern, n
+    n = max(lo, min(int(days_per_week), hi))
+    return fallback[n], n
+
+
 def generate_run_plan(
     goal: str,
     level: str,
@@ -87,9 +119,10 @@ def generate_run_plan(
     avg_pace_sec_per_km: float = DEFAULT_PACE_SEC_PER_KM,
     weeks: int = DEFAULT_WEEKS,
     start_date: Optional[date] = None,
+    days: Optional[list[int]] = None,
 ) -> list[tuple[str, dict]]:
     """Return [(date_iso, entry_dict), …] for a `weeks`-long run plan."""
-    days_per_week = max(3, min(days_per_week, 6))
+    pattern, days_per_week = resolve_days(days, days_per_week, 3, 6, _DAY_PATTERNS)
     weeks   = max(MIN_WEEKS, min(int(weeks or DEFAULT_WEEKS), MAX_WEEKS))
     slots   = _SLOTS[days_per_week]
     factors = week_factors(weeks, taper=goal in _RACE_GOALS)
@@ -115,7 +148,6 @@ def generate_run_plan(
     days_ahead = (7 - from_date.weekday()) % 7
     start      = from_date + timedelta(days=days_ahead)
 
-    pattern = _DAY_PATTERNS[days_per_week]
     dates: list[date] = []
     cursor = start
     while len(dates) < len(entries):

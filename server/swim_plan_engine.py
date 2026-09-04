@@ -15,6 +15,8 @@ from __future__ import annotations
 from datetime import date, timedelta
 from typing import Optional
 
+from run_plan_engine import resolve_days
+
 # Goals that finish with a taper rather than a peak week.
 _RACE_GOALS = {"distance_event", "race_prep", "triathlon"}
 
@@ -103,9 +105,10 @@ def generate_swim_plan(
     avg_pace_sec_per_100m: float = DEFAULT_PACE_SEC_PER_100M,
     weeks: int = DEFAULT_WEEKS,
     start_date: Optional[date] = None,
+    days: Optional[list[int]] = None,
 ) -> list[tuple[str, dict]]:
     """Return [(date_iso, entry_dict), …] for a `weeks`-long swim plan."""
-    days_per_week = max(2, min(days_per_week, 6))
+    pattern, days_per_week = resolve_days(days, days_per_week, 2, 6, _DAY_PATTERNS)
     weeks   = max(MIN_WEEKS, min(int(weeks or DEFAULT_WEEKS), MAX_WEEKS))
     slots   = _SLOTS[days_per_week]
     factors = week_factors(weeks, taper=goal in _RACE_GOALS)
@@ -131,7 +134,6 @@ def generate_swim_plan(
     days_ahead = (7 - from_date.weekday()) % 7
     start      = from_date + timedelta(days=days_ahead)
 
-    pattern = _DAY_PATTERNS[days_per_week]
     dates: list[date] = []
     cursor = start
     while len(dates) < len(entries):

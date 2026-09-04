@@ -145,6 +145,32 @@ const PlanWebEngine = (() => {
     7: [0, 1, 2, 3, 4, 5, 6],
   };
 
+
+  // Work out which weekdays to train on. An explicit `days` list (Python
+  // weekday numbers, Mon=0 … Sun=6) wins over daysPerWeek, so a caller can
+  // pin an exact weekly layout — necessary when several disciplines share
+  // one calendar and must not collide. Mirrors resolve_days() in
+  // server/run_plan_engine.py.
+  function resolveDays(days, daysPerWeek, lo, hi, fallback) {
+    if (Array.isArray(days) && days.length) {
+      let pattern = [...new Set(days.map(d => ((parseInt(d, 10) % 7) + 7) % 7))].sort((a, b) => a - b);
+      if (pattern.length) {
+        const n = Math.min(Math.max(pattern.length, lo), hi);
+        pattern = pattern.slice(0, n);
+        if (pattern.length < n) {
+          for (const d of [2, 5, 0, 3, 6, 1, 4]) {
+            if (pattern.length >= n) break;
+            if (!pattern.includes(d)) pattern.push(d);
+          }
+          pattern.sort((a, b) => a - b);
+        }
+        return [pattern, n];
+      }
+    }
+    const n = Math.min(Math.max(parseInt(daysPerWeek, 10) || lo, lo), hi);
+    return [fallback[n], n];
+  }
+
   // DAY_PATTERNS above use Python's weekday() convention (Mon=0 … Sun=6),
   // NOT JS getDay() (Sun=0 … Sat=6). Convert before comparing, so this
   // file and plan_engine.py schedule the same weekdays.
@@ -187,9 +213,10 @@ const PlanWebEngine = (() => {
     return out;
   }
 
-  function generatePlan({ goal, level, daysPerWeek, sessionMins, weeks }) {
+  function generatePlan({ goal, level, daysPerWeek, sessionMins, weeks, days }) {
     goal        = PLANS[goal] ? goal : 'base_fitness';
-    daysPerWeek = Math.min(Math.max(daysPerWeek, 3), 7);
+    const [pattern, dpw] = resolveDays(days, daysPerWeek, 3, 7, DAY_PATTERNS);
+    daysPerWeek = dpw;
     weeks       = Math.min(Math.max(parseInt(weeks, 10) || DEFAULT_WEEKS, MIN_WEEKS), MAX_WEEKS);
 
     const scale   = { beginner: 0.85, intermediate: 1.0, advanced: 1.15 }[level] ?? 1.0;
@@ -210,7 +237,6 @@ const PlanWebEngine = (() => {
       types = expanded;
     }
 
-    const pattern = DAY_PATTERNS[daysPerWeek];
     const dates   = [];
     let cursor    = nextMonday(new Date());
     while (dates.length < types.length) {
