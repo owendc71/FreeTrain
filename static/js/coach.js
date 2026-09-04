@@ -80,11 +80,27 @@ class CoachChat {
     return null;
   }
 
+  // The AI coach (web build only) accepts free text at any point, so the
+  // input row stays available instead of only appearing for scripted
+  // free_text/number steps.
+  _aiMode() { return !!window.AICoachWeb; }
+
+  _showFreeChat() {
+    this._inputRow.style.display = 'flex';
+    this._textInput.type        = 'text';
+    this._textInput.placeholder = 'Ask your coach anything…';
+    this._pendingStep           = null;
+    this._pendingKind           = 'ai';
+  }
+
   _renderInteraction(pending) {
     this._repliesEl.innerHTML = '';
     this._inputRow.style.display = 'none';
 
-    if (!pending) return;
+    if (!pending) {
+      if (this._aiMode()) this._showFreeChat();
+      return;
+    }
 
     if (pending.message_type === 'quick_reply') {
       (pending.payload.options || []).forEach(opt => {
@@ -94,6 +110,9 @@ class CoachChat {
         btn.addEventListener('click', () => this._sendReply(pending, opt.value));
         this._repliesEl.appendChild(btn);
       });
+      // Quick replies (e.g. post-workout check-ins) stay clickable, but the
+      // athlete can also just answer in their own words.
+      if (this._aiMode()) this._showFreeChat();
       return;
     }
 
@@ -135,6 +154,27 @@ class CoachChat {
   }
 
   _submitTextInput() {
+    // ── AI coach: free-form chat ──
+    if (this._pendingKind === 'ai') {
+      const text = this._textInput.value.trim();
+      if (!text || window.AICoachWeb.isBusy()) return;
+      this._textInput.value = '';
+      // Fire-and-forget, but never leave a rejection unhandled — that's
+      // exactly what makes a click look like it did nothing.
+      window.AICoachWeb.send(text)
+        .then(ok => {
+          if (ok) return;
+          window.toast?.('AI coach unavailable — falling back to the built-in coach.', 5000);
+          window.sendWS({ action: 'coach_start_onboarding' });
+        })
+        .catch(err => {
+          console.error('AI coach send failed:', err);
+          window.toast?.('Something went wrong reaching the coach.');
+        });
+      return;
+    }
+
+    // ── Scripted coach: answering a specific step ──
     if (!this._pendingStep) return;
     const raw = this._textInput.value.trim();
     const value = this._pendingKind === 'text' && !raw ? 'Skip' : raw;

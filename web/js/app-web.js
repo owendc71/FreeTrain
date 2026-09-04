@@ -674,6 +674,34 @@ async function _postCoachText(text) {
   if (text) await _postCoachRow('coach', text);
 }
 
+/* ── AI coach seam ─────────────────────────────────────────────────
+   Explicit, documented surface that web/js/ai-coach-web.js consumes,
+   so the AI coach never reaches into this file's internals. Plan
+   creation routes through the same _generatePlan/_generateRunPlan the
+   rule-based coach uses — the AI picks the parameters, FreeTrain's own
+   engines still build the plan. */
+window.FreeTrainAI = {
+  postCoachRow: (role, text) => _postCoachRow(role, text),
+  getCoachMessages: () => CoachWeb.getMessages(_sb, _userId),
+  generatePlan:     profile => _generatePlan(profile),
+  generateRunPlan:  profile => _generateRunPlan(profile),
+  getProfile: () => _profile,
+  getRides:   () => _rides,
+  getRuns:    () => _runs,
+  getPlan:    () => _plan,
+  getRunPlan: () => _runPlan,
+
+  async saveProfile(fields) {
+    _profile = await CoachWeb.saveProfile(_sb, _userId, fields);
+    return _profile;
+  },
+
+  async getAccessToken() {
+    const { data: { session } } = await _sb.auth.getSession();
+    return session?.access_token || null;
+  },
+};
+
 async function _postCoachStep(step, profileSoFar) {
   const prompt = CoachEngineWeb.stepPrompt(step, profileSoFar);
   prompt.payload.profile_so_far = profileSoFar;
@@ -697,14 +725,23 @@ function _labelForReply(pending, value) {
   return String(value);
 }
 
+// Opening line for the AI coach. Static text — costs nothing, and the
+// real conversation starts as soon as the athlete types.
+const AI_COACH_GREETING =
+  "Hey — I'm your coach. Tell me what you're training for and I'll build you a plan, "
+  + "or just ask me anything about your training.";
+
 async function _loadCoachData() {
   let profile  = await CoachWeb.getProfile(_sb, _userId);
   let messages = await CoachWeb.getMessages(_sb, _userId);
+  _profile = profile;
   if (!profile && !messages.length) {
-    await _postCoachStep('discipline', {});
+    // With the AI coach available, skip the scripted survey — it handles
+    // onboarding conversationally instead.
+    if (window.AICoachWeb) await _postCoachRow('coach', AI_COACH_GREETING);
+    else                   await _postCoachStep('discipline', {});
     messages = await CoachWeb.getMessages(_sb, _userId);
   }
-  _profile = profile;
   if (window._coach) window._coach.mount({ profile, messages });
 }
 
