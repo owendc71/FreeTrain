@@ -3,502 +3,503 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FreeTrain — Structured Indoor Cycling Training. Free.</title>
-  <meta name="description" content="FreeTrain is a free, open indoor cycling training platform. ERG mode smart trainer control, adaptive training plans, and full ride analytics — in your browser or on your desktop.">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b1410'/%3E%3Cpolyline points='27 16 22.5 16 19 25 12 7 8.5 16 5 16' fill='none' stroke='%2322c55e' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <title>FreeTrain — Structured training that costs nothing</title>
+  <meta name="description" content="FreeTrain is free training software for cyclists, runners, swimmers and lifters. ERG smart-trainer control, plans that adapt to how your training actually goes, and the training-load metrics coaches use.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b0d0f'/%3E%3Cpolyline points='27 16 22.5 16 19 25 12 7 8.5 16 5 16' fill='none' stroke='%2322c55e' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg:        #0b1410;
-      --bg-2:      #0e1a14;
-      --surface:   rgba(255,255,255,0.035);
-      --surface-2: rgba(255,255,255,0.06);
-      --border:    rgba(255,255,255,0.09);
-      --border-2:  rgba(255,255,255,0.16);
-      --text:      #f2f7f3;
-      --text-2:    #9db3a4;
-      --text-3:    #5f7568;
-      --green:     #22c55e;
-      --green-dim: #16a34a;
-      --green-glow: rgba(34,197,94,0.35);
+      /* Ground is neutral graphite on purpose: colour in this page only
+         ever encodes data, never mood. */
+      --ink:    #0B0D0F;
+      --raise:  #141719;
+      --line:   #22282B;
+      --line-2: #2E3639;
+      --text:   #E9EEEB;
+      --dim:    #7E8B86;
+
+      /* Intensity ramp — one hue, lighter = harder. Used only in the
+         power profile. */
+      --z1: #1C3A2A;
+      --z2: #2A6B45;
+      --z3: #22C55E;
+      --z4: #4ADE80;
+      --z5: #A7F3C0;
+
+      /* Discipline hues — the app's own. Used only in the discipline row. */
+      --bike:     #22C55E;
+      --run:      #14B8A6;
+      --swim:     #38BDF8;
+      --strength: #A78BFA;
+
+      --measure: 62ch;
     }
 
-    html { scroll-behavior: smooth; }
+    html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+
     body {
-      background: var(--bg);
+      background: var(--ink);
       color: var(--text);
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-family: Archivo, -apple-system, BlinkMacSystemFont, sans-serif;
       font-size: 16px;
-      line-height: 1.6;
+      line-height: 1.55;
       -webkit-font-smoothing: antialiased;
       overflow-x: hidden;
     }
 
-    .wrap { max-width: 1120px; margin: 0 auto; padding: 0 28px; }
+    a { color: inherit; }
 
-    /* ── Nav ─────────────────────────────────────────── */
+    :focus-visible {
+      outline: 2px solid var(--z3);
+      outline-offset: 3px;
+      border-radius: 2px;
+    }
+
+    .wrap { max-width: 1080px; margin: 0 auto; padding: 0 28px; }
+
+    .mono {
+      font-family: 'IBM Plex Mono', ui-monospace, monospace;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ── Nav ─────────────────────────────────────────────────────── */
     .nav {
       position: sticky; top: 0; z-index: 50;
-      background: rgba(11,20,16,0.82);
-      backdrop-filter: blur(16px) saturate(160%);
-      -webkit-backdrop-filter: blur(16px) saturate(160%);
-      border-bottom: 1px solid var(--border);
+      background: rgba(11, 13, 15, 0.72);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--line);
     }
-    .nav-inner {
-      display: flex; align-items: center; gap: 32px;
-      height: 64px;
-    }
+    .nav-inner { display: flex; align-items: center; height: 62px; gap: 30px; }
     .brand {
-      display: flex; align-items: center; gap: 8px;
-      font-size: 18px; font-weight: 800; letter-spacing: -0.035em;
-      color: var(--text); text-decoration: none;
+      font-size: 16px; font-weight: 700; letter-spacing: -0.03em;
+      text-decoration: none; color: var(--text);
     }
-    .brand .accent-word {
-      background: linear-gradient(100deg, #22c55e 20%, #7ee2a3 80%);
-      -webkit-background-clip: text; background-clip: text;
-      -webkit-text-fill-color: transparent; color: transparent;
-    }
-    .nav-links { display: flex; gap: 26px; margin-left: 12px; }
+    .nav-links { display: flex; gap: 24px; margin-left: 6px; }
     .nav-links a {
-      color: var(--text-2); text-decoration: none;
+      color: var(--dim); text-decoration: none;
       font-size: 14px; font-weight: 500;
       transition: color .15s;
     }
     .nav-links a:hover { color: var(--text); }
-    .nav-cta { margin-left: auto; }
-    @media (max-width: 720px) { .nav-links { display: none; } }
+    .nav-right { margin-left: auto; }
+    @media (max-width: 700px) { .nav-links { display: none; } }
 
-    /* ── Buttons ─────────────────────────────────────── */
+    /* ── Buttons ─────────────────────────────────────────────────── */
     .btn {
-      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-      padding: 12px 26px; border-radius: 10px;
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 12px 22px;
+      border: 1px solid transparent; border-radius: 7px;
       font: inherit; font-size: 15px; font-weight: 600;
-      cursor: pointer; text-decoration: none;
-      border: 1px solid transparent;
-      transition: background .15s, box-shadow .15s, border-color .15s, transform .1s;
-      white-space: nowrap;
+      letter-spacing: -0.01em;
+      text-decoration: none; cursor: pointer; white-space: nowrap;
+      transition: background .14s, border-color .14s, color .14s;
     }
-    .btn:active { transform: scale(.98); }
-    .btn-primary {
-      background: var(--green);
-      color: #06130a;
-      box-shadow: 0 2px 8px rgba(0,0,0,.3), 0 0 28px var(--green-glow);
+    .btn-primary { background: var(--z3); color: #06130A; }
+    .btn-primary:hover { background: var(--z4); }
+    .btn-quiet {
+      background: transparent; color: var(--text);
+      border-color: var(--line-2);
     }
-    .btn-primary:hover { background: #2fd66c; box-shadow: 0 2px 10px rgba(0,0,0,.35), 0 0 40px var(--green-glow); }
-    .btn-ghost {
-      background: var(--surface-2);
-      color: var(--text);
-      border-color: var(--border-2);
-    }
-    .btn-ghost:hover { background: rgba(255,255,255,0.10); border-color: rgba(255,255,255,0.25); }
-    .btn-sm { padding: 9px 18px; font-size: 14px; }
-    .btn[disabled], .btn.disabled {
-      opacity: .45; cursor: not-allowed; pointer-events: none;
-    }
-    .soon-tag {
-      font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
-      background: rgba(255,255,255,0.12); border-radius: 5px; padding: 2px 6px;
-    }
+    .btn-quiet:hover { border-color: var(--dim); background: var(--raise); }
+    .btn-sm { padding: 8px 15px; font-size: 14px; border-radius: 6px; }
 
-    /* ── Hero ────────────────────────────────────────── */
-    .hero {
-      position: relative;
-      padding: 96px 0 72px;
-      text-align: center;
-      background:
-        radial-gradient(ellipse 65% 55% at 50% -10%, rgba(34,197,94,0.14) 0%, transparent 65%),
-        radial-gradient(ellipse 40% 35% at 82% 15%, rgba(34,197,94,0.06) 0%, transparent 60%);
-    }
-    .hero-eyebrow {
-      display: inline-flex; align-items: center; gap: 8px;
-      font-size: 12.5px; font-weight: 600; letter-spacing: .04em;
-      color: var(--green);
-      background: rgba(34,197,94,0.08);
-      border: 1px solid rgba(34,197,94,0.25);
-      border-radius: 20px; padding: 6px 16px;
-      margin-bottom: 28px;
-    }
+    /* ── Hero ────────────────────────────────────────────────────── */
+    .hero { padding: 104px 0 0; }
     .hero h1 {
-      font-size: clamp(38px, 6vw, 64px);
-      font-weight: 900; letter-spacing: -0.045em; line-height: 1.06;
-      margin-bottom: 22px;
+      font-size: clamp(2.6rem, 6.4vw, 4.6rem);
+      font-weight: 700;
+      line-height: 1.02;
+      letter-spacing: -0.045em;
+      max-width: 16ch;
     }
-    .hero h1 .accent {
-      background: linear-gradient(100deg, #22c55e 20%, #7ee2a3 80%);
-      -webkit-background-clip: text; background-clip: text;
-      -webkit-text-fill-color: transparent; color: transparent;
+    .hero .lede {
+      margin-top: 24px;
+      max-width: var(--measure);
+      font-size: clamp(1rem, 1.6vw, 1.16rem);
+      color: var(--dim);
     }
-    .hero p.sub {
-      font-size: clamp(16px, 2.2vw, 19px);
-      color: var(--text-2);
-      max-width: 620px; margin: 0 auto 40px;
-      line-height: 1.65;
+    .hero-actions {
+      margin-top: 36px;
+      display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
     }
-    .hero-ctas {
-      display: flex; gap: 14px; justify-content: center; align-items: center; flex-wrap: wrap;
-      margin-bottom: 14px;
+    .hero-actions .aside { font-size: 14px; color: var(--dim); }
+    .hero-note {
+      margin-top: 18px; font-size: 13.5px; color: var(--dim);
+      max-width: var(--measure);
     }
-    .hero-note { font-size: 13px; color: var(--text-3); }
 
-    /* ── Workout profile visual ──────────────────────── */
-    .profile-visual {
-      max-width: 860px; margin: 64px auto 0;
-      background: linear-gradient(180deg, var(--surface-2), var(--surface));
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 26px 26px 20px;
-      box-shadow: 0 24px 80px rgba(0,0,0,.45), 0 0 0 1px rgba(0,0,0,.2);
-      text-align: left;
+    /* ── The power profile: the page's one bold element ──────────── */
+    .profile {
+      max-width: 1360px;      /* wider than the 1080px prose column, on purpose */
+      margin: 76px auto 0;
+      padding: 0 28px;
     }
-    .pv-head {
-      display: flex; align-items: baseline; gap: 12px; margin-bottom: 6px;
+    .profile-caption {
+      display: flex; align-items: baseline; justify-content: space-between;
+      gap: 18px; flex-wrap: wrap;
+      padding-bottom: 12px;
+      font-size: 12.5px; color: var(--dim);
     }
-    .pv-title { font-size: 14px; font-weight: 700; }
-    .pv-meta  { font-size: 12px; color: var(--text-3); font-weight: 500; }
-    .pv-watts {
-      margin-left: auto; font-size: 26px; font-weight: 800; letter-spacing: -0.04em;
-      color: var(--green); font-variant-numeric: tabular-nums;
+    .profile-plot {
+      display: flex; align-items: flex-end; gap: 2px;
+      height: 210px;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line-2);
+      background:
+        repeating-linear-gradient(to top, transparent 0 51px, var(--line) 51px 52px);
     }
-    .pv-watts span { font-size: 12px; font-weight: 600; color: var(--text-3); margin-left: 3px; }
-    .pv-bars {
-      display: flex; align-items: flex-end; gap: 3px;
-      height: 150px; margin-top: 18px;
-      border-bottom: 1px solid var(--border);
-      padding-bottom: 0;
-    }
-    .pv-bars .bar {
-      flex: 1; border-radius: 3px 3px 0 0;
-      background: linear-gradient(180deg, rgba(34,197,94,0.85), rgba(34,197,94,0.25));
+    .profile-plot .bar {
+      flex: 1 1 0;
       min-width: 0;
+      height: var(--h);
+      background: var(--c);
+      border-radius: 2px 2px 0 0;
+      transform-origin: bottom;
     }
-    .pv-bars .bar.z2 { background: linear-gradient(180deg, rgba(59,130,246,0.75), rgba(59,130,246,0.20)); }
-    .pv-bars .bar.z4 { background: linear-gradient(180deg, rgba(234,179,8,0.85),  rgba(234,179,8,0.25)); }
-    .pv-bars .bar.z5 { background: linear-gradient(180deg, rgba(249,115,22,0.85), rgba(249,115,22,0.25)); }
-    .pv-labels {
+    @media (prefers-reduced-motion: no-preference) {
+      .profile-plot .bar {
+        animation: rise .5s cubic-bezier(.2, .7, .3, 1) backwards;
+        animation-delay: calc(var(--i) * 14ms);
+      }
+      @keyframes rise { from { transform: scaleY(0); } }
+    }
+    .profile-axis {
       display: flex; justify-content: space-between;
-      font-size: 11px; color: var(--text-3); margin-top: 8px;
-      font-variant-numeric: tabular-nums;
+      padding: 10px 0 0;
+      font-size: 11.5px; color: var(--dim);
+    }
+    @media (max-width: 640px) {
+      .profile { padding: 0 14px; }
+      .profile-plot { height: 150px; }
+      .profile-axis span:nth-child(even) { display: none; }
     }
 
-    /* ── Sections ────────────────────────────────────── */
-    section { padding: 84px 0; }
-    .sec-label {
-      font-size: 12px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase;
-      color: var(--green); margin-bottom: 14px; text-align: center;
+    /* ── Section scaffolding ─────────────────────────────────────── */
+    section { padding: 96px 0; }
+    .sec-head { max-width: var(--measure); margin-bottom: 44px; }
+    .sec-head h2 {
+      font-size: clamp(1.7rem, 3.2vw, 2.3rem);
+      font-weight: 700; letter-spacing: -0.035em; line-height: 1.12;
     }
-    .sec-title {
-      font-size: clamp(28px, 4vw, 40px);
-      font-weight: 800; letter-spacing: -0.035em; line-height: 1.15;
-      text-align: center; margin-bottom: 16px;
+    .sec-head p { margin-top: 14px; color: var(--dim); }
+
+    /* ── Disciplines ─────────────────────────────────────────────── */
+    .disciplines {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
+      background: var(--line);
+      border: 1px solid var(--line);
     }
-    .sec-sub {
-      text-align: center; color: var(--text-2); max-width: 560px; margin: 0 auto 56px;
-      font-size: 16px;
+    .discipline {
+      background: var(--ink);
+      padding: 22px 20px 24px;
+      border-top: 2px solid var(--c);
+    }
+    .discipline h3 {
+      font-size: 15px; font-weight: 600; letter-spacing: -0.01em;
+      margin-bottom: 7px;
+    }
+    .discipline p { font-size: 13.5px; color: var(--dim); line-height: 1.5; }
+    @media (max-width: 860px) { .disciplines { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 460px) { .disciplines { grid-template-columns: 1fr; } }
+
+    /* ── Capability rows (a spec sheet, not cards) ───────────────── */
+    .specs { border-top: 1px solid var(--line); }
+    .spec {
+      display: grid;
+      grid-template-columns: 232px 1fr;
+      gap: 32px;
+      padding: 22px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .spec dt { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+    .spec dd { color: var(--dim); font-size: 14.5px; max-width: 64ch; }
+    @media (max-width: 720px) {
+      .spec { grid-template-columns: 1fr; gap: 6px; }
     }
 
-    /* ── Features ────────────────────────────────────── */
-    .features {
-      display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px;
+    /* ── Platforms ───────────────────────────────────────────────── */
+    .platforms { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    .platform {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 26px 26px 28px;
+      background: var(--raise);
     }
-    @media (max-width: 900px) { .features { grid-template-columns: repeat(2, 1fr); } }
-    @media (max-width: 600px) { .features { grid-template-columns: 1fr; } }
-    .feature {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 26px 24px;
-      transition: border-color .2s, background .2s, transform .2s;
+    .platform.muted { background: transparent; }
+    .platform h3 {
+      font-size: 17px; font-weight: 700; letter-spacing: -0.02em;
+      display: flex; align-items: center; gap: 10px;
     }
-    .feature:hover {
-      border-color: rgba(34,197,94,0.35);
-      background: var(--surface-2);
-      transform: translateY(-2px);
+    .platform .status {
+      font-size: 11.5px; font-weight: 500;
+      color: var(--dim);
+      border: 1px solid var(--line-2);
+      border-radius: 20px; padding: 2px 9px;
     }
-    .feature-icon {
-      width: 42px; height: 42px; border-radius: 10px;
-      background: rgba(34,197,94,0.10);
-      border: 1px solid rgba(34,197,94,0.22);
-      display: flex; align-items: center; justify-content: center;
-      margin-bottom: 18px;
+    .platform > p { margin-top: 12px; color: var(--dim); font-size: 14.5px; }
+    .platform ul { margin: 18px 0 24px; list-style: none; }
+    .platform li {
+      font-size: 14px; color: var(--dim);
+      padding: 7px 0 7px 18px; position: relative;
+      border-top: 1px solid var(--line);
     }
-    .feature-icon svg { color: var(--green); }
-    .feature h3 { font-size: 16px; font-weight: 700; margin-bottom: 8px; letter-spacing: -0.015em; }
-    .feature p  { font-size: 14px; color: var(--text-2); line-height: 1.65; }
-
-    /* ── Get started (web vs desktop) ────────────────── */
-    .platforms {
-      display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
-      max-width: 880px; margin: 0 auto;
+    .platform li:first-child { border-top: none; }
+    .platform li::before {
+      content: ""; position: absolute; left: 0; top: 15px;
+      width: 6px; height: 1px; background: var(--dim);
     }
     @media (max-width: 760px) { .platforms { grid-template-columns: 1fr; } }
-    .platform {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 18px;
-      padding: 34px 30px;
-      display: flex; flex-direction: column; gap: 16px;
-      position: relative;
-    }
-    .platform.highlight {
-      border-color: rgba(34,197,94,0.4);
-      background: linear-gradient(180deg, rgba(34,197,94,0.07), var(--surface));
-      box-shadow: 0 0 50px rgba(34,197,94,0.07);
-    }
-    .platform-badge {
-      position: absolute; top: -11px; left: 28px;
-      background: var(--green); color: #06130a;
-      font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
-      padding: 3px 12px; border-radius: 12px;
-    }
-    .platform h3 { font-size: 21px; font-weight: 800; letter-spacing: -0.025em; display: flex; align-items: center; gap: 10px; }
-    .platform h3 svg { color: var(--green); flex-shrink: 0; }
-    .platform > p { font-size: 14.5px; color: var(--text-2); line-height: 1.65; }
-    .platform ul { list-style: none; display: flex; flex-direction: column; gap: 9px; margin: 4px 0 8px; }
-    .platform li {
-      display: flex; gap: 10px; align-items: flex-start;
-      font-size: 14px; color: var(--text-2);
-    }
-    .platform li::before {
-      content: '';
-      width: 16px; height: 16px; flex-shrink: 0; margin-top: 3px;
-      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2322c55e' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E") no-repeat center / contain;
-    }
-    .platform .btn { margin-top: auto; width: 100%; }
-    .platform-note { font-size: 12px; color: var(--text-3); text-align: center; margin-top: -6px; }
 
-    /* ── Bottom CTA ──────────────────────────────────── */
-    .bottom-cta {
-      text-align: center;
-      background:
-        radial-gradient(ellipse 55% 70% at 50% 110%, rgba(34,197,94,0.12) 0%, transparent 65%);
-      border-top: 1px solid var(--border);
+    /* ── Close ───────────────────────────────────────────────────── */
+    .close { border-top: 1px solid var(--line); }
+    .close h2 {
+      font-size: clamp(1.6rem, 3vw, 2.1rem);
+      font-weight: 700; letter-spacing: -0.035em;
+      max-width: 20ch;
     }
-    .bottom-cta h2 {
-      font-size: clamp(26px, 4vw, 38px);
-      font-weight: 800; letter-spacing: -0.035em; margin-bottom: 14px;
-    }
-    .bottom-cta p { color: var(--text-2); margin-bottom: 34px; }
+    .close p { margin-top: 14px; color: var(--dim); max-width: var(--measure); }
+    .close .btn { margin-top: 30px; }
 
-    /* ── Footer ──────────────────────────────────────── */
-    footer {
-      border-top: 1px solid var(--border);
-      padding: 34px 0;
-    }
+    /* ── Footer ──────────────────────────────────────────────────── */
+    footer { border-top: 1px solid var(--line); padding: 26px 0 40px; }
     .footer-inner {
       display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
-      font-size: 13px; color: var(--text-3);
+      font-size: 13.5px; color: var(--dim);
     }
-    .footer-inner .brand { font-size: 15px; }
+    .footer-inner .brand { font-size: 14px; }
     .footer-right { margin-left: auto; display: flex; gap: 20px; }
-    .footer-right a { color: var(--text-3); text-decoration: none; transition: color .15s; }
-    .footer-right a:hover { color: var(--text-2); }
+    .footer-right a { text-decoration: none; transition: color .15s; }
+    .footer-right a:hover { color: var(--text); }
   </style>
 </head>
 <body>
 
-<!-- ═══ Nav ═══ -->
 <nav class="nav">
   <div class="wrap nav-inner">
-    <a class="brand" href="/"><span class="accent-word">Free</span>Train</a>
+    <a class="brand" href="/">FreeTrain</a>
     <div class="nav-links">
-      <a href="#features">Features</a>
-      <a href="#get-started">Get Started</a>
+      <a href="#what">What it does</a>
+      <a href="#disciplines">Disciplines</a>
+      <a href="#platforms">Get started</a>
     </div>
-    <div class="nav-cta">
-      <a class="btn btn-primary btn-sm" href="/app">Launch App</a>
+    <div class="nav-right">
+      <a class="btn btn-primary btn-sm" href="/app">Open FreeTrain</a>
     </div>
   </div>
 </nav>
 
-<!-- ═══ Hero ═══ -->
 <header class="hero">
   <div class="wrap">
-    <div class="hero-eyebrow">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-      Free &amp; open indoor training
-    </div>
-    <h1>Structured training.<br><span class="accent">Zero subscription.</span></h1>
-    <p class="sub">
-      FreeTrain controls your smart trainer with ERG mode, builds you an adaptive
-      training plan, and tracks every watt — with the analytics you'd expect from
-      platforms that charge $20 a month. Except it's free.
+    <h1>Structured training that costs nothing.</h1>
+    <p class="lede">
+      FreeTrain drives your smart trainer in ERG mode, builds plans that adjust to
+      how your training actually goes, and computes the same training-load numbers
+      your coach would — across cycling, running, swimming and strength.
     </p>
-    <div class="hero-ctas">
-      <a class="btn btn-primary" href="/app">
-        Train on the Web
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-      </a>
-      <button class="btn btn-ghost" disabled title="The desktop app is coming soon">
-        Download for Desktop
-        <span class="soon-tag">Coming Soon</span>
-      </button>
+    <div class="hero-actions">
+      <a class="btn btn-primary" href="/app">Open FreeTrain</a>
+      <span class="aside">Desktop app in progress</span>
     </div>
-    <p class="hero-note">Web version works in Chrome and Edge with any Bluetooth smart trainer.</p>
-
-    <!-- Workout profile visual -->
-    <div class="profile-visual">
-      <div class="pv-head">
-        <span class="pv-title">Sweet Spot 3×12min</span>
-        <span class="pv-meta">65 min · TSS 78 · IF 0.87</span>
-        <span class="pv-watts">248<span>W</span></span>
-      </div>
-      <div class="pv-bars">
-        <div class="bar z2" style="height:38%"></div>
-        <div class="bar z2" style="height:42%"></div>
-        <div class="bar z2" style="height:48%"></div>
-        <div class="bar"    style="height:74%"></div>
-        <div class="bar"    style="height:74%"></div>
-        <div class="bar"    style="height:74%"></div>
-        <div class="bar z2" style="height:36%"></div>
-        <div class="bar"    style="height:74%"></div>
-        <div class="bar"    style="height:74%"></div>
-        <div class="bar"    style="height:74%"></div>
-        <div class="bar z2" style="height:36%"></div>
-        <div class="bar z4" style="height:88%"></div>
-        <div class="bar z4" style="height:88%"></div>
-        <div class="bar z5" style="height:100%"></div>
-        <div class="bar z2" style="height:36%"></div>
-        <div class="bar z2" style="height:42%"></div>
-        <div class="bar z2" style="height:30%"></div>
-        <div class="bar z2" style="height:26%"></div>
-      </div>
-      <div class="pv-labels">
-        <span>0:00</span><span>15:00</span><span>30:00</span><span>45:00</span><span>65:00</span>
-      </div>
-    </div>
+    <p class="hero-note">
+      Runs in Chrome or Edge with any Bluetooth FTMS trainer. No install, no card, no trial clock.
+    </p>
   </div>
+
+  <!-- The product's own output, at full width: a threshold session. -->
+  <figure class="profile">
+    <figcaption class="profile-caption">
+      <span>Threshold · 3&times;8min @ 97% FTP, with VO<sub>2</sub> openers</span>
+      <span class="mono">62 min &middot; 78 TSS &middot; IF 0.86</span>
+    </figcaption>
+
+    <div class="profile-plot" role="img"
+         aria-label="Power profile of a 62-minute threshold workout: a warm-up ramp, three eight-minute efforts at 97% of FTP separated by recoveries, two short VO2 max openers, then a cool-down.">
+      <div class="bar" style="--h:22%;--c:var(--z1);--i:0"></div>
+      <div class="bar" style="--h:26%;--c:var(--z1);--i:1"></div>
+      <div class="bar" style="--h:30%;--c:var(--z1);--i:2"></div>
+      <div class="bar" style="--h:34%;--c:var(--z2);--i:3"></div>
+      <div class="bar" style="--h:38%;--c:var(--z2);--i:4"></div>
+      <div class="bar" style="--h:42%;--c:var(--z2);--i:5"></div>
+      <div class="bar" style="--h:46%;--c:var(--z2);--i:6"></div>
+      <div class="bar" style="--h:50%;--c:var(--z2);--i:7"></div>
+      <div class="bar" style="--h:34%;--c:var(--z1);--i:8"></div>
+      <div class="bar" style="--h:34%;--c:var(--z1);--i:9"></div>
+      <div class="bar" style="--h:86%;--c:var(--z4);--i:10"></div>
+      <div class="bar" style="--h:86%;--c:var(--z4);--i:11"></div>
+      <div class="bar" style="--h:86%;--c:var(--z4);--i:12"></div>
+      <div class="bar" style="--h:86%;--c:var(--z4);--i:13"></div>
+      <div class="bar" style="--h:86%;--c:var(--z4);--i:14"></div>
+      <div class="bar" style="--h:86%;--c:var(--z4);--i:15"></div>
+      <div class="bar" style="--h:86%;--c:var(--z4);--i:16"></div>
+      <div class="bar" style="--h:86%;--c:var(--z4);--i:17"></div>
+      <div class="bar" style="--h:32%;--c:var(--z1);--i:18"></div>
+      <div class="bar" style="--h:32%;--c:var(--z1);--i:19"></div>
+      <div class="bar" style="--h:32%;--c:var(--z1);--i:20"></div>
+      <div class="bar" style="--h:86%;--c:var(--z4);--i:21"></div>
+      <div class="bar" style="--h:86%;--c:var(--z4);--i:22"></div>
+      <div class="bar" style="--h:86%;--c:var(--z4);--i:23"></div>
+      <div class="bar" style="--h:86%;--c:var(--z4);--i:24"></div>
+      <div class="bar" style="--h:86%;--c:var(--z4);--i:25"></div>
+      <div class="bar" style="--h:86%;--c:var(--z4);--i:26"></div>
+      <div class="bar" style="--h:86%;--c:var(--z4);--i:27"></div>
+      <div class="bar" style="--h:86%;--c:var(--z4);--i:28"></div>
+      <div class="bar" style="--h:32%;--c:var(--z1);--i:29"></div>
+      <div class="bar" style="--h:32%;--c:var(--z1);--i:30"></div>
+      <div class="bar" style="--h:32%;--c:var(--z1);--i:31"></div>
+      <div class="bar" style="--h:86%;--c:var(--z4);--i:32"></div>
+      <div class="bar" style="--h:86%;--c:var(--z4);--i:33"></div>
+      <div class="bar" style="--h:86%;--c:var(--z4);--i:34"></div>
+      <div class="bar" style="--h:86%;--c:var(--z4);--i:35"></div>
+      <div class="bar" style="--h:86%;--c:var(--z4);--i:36"></div>
+      <div class="bar" style="--h:86%;--c:var(--z4);--i:37"></div>
+      <div class="bar" style="--h:86%;--c:var(--z4);--i:38"></div>
+      <div class="bar" style="--h:86%;--c:var(--z4);--i:39"></div>
+      <div class="bar" style="--h:30%;--c:var(--z1);--i:40"></div>
+      <div class="bar" style="--h:30%;--c:var(--z1);--i:41"></div>
+      <div class="bar" style="--h:30%;--c:var(--z1);--i:42"></div>
+      <div class="bar" style="--h:100%;--c:var(--z5);--i:43"></div>
+      <div class="bar" style="--h:100%;--c:var(--z5);--i:44"></div>
+      <div class="bar" style="--h:30%;--c:var(--z1);--i:45"></div>
+      <div class="bar" style="--h:30%;--c:var(--z1);--i:46"></div>
+      <div class="bar" style="--h:100%;--c:var(--z5);--i:47"></div>
+      <div class="bar" style="--h:100%;--c:var(--z5);--i:48"></div>
+      <div class="bar" style="--h:30%;--c:var(--z1);--i:49"></div>
+      <div class="bar" style="--h:28%;--c:var(--z1);--i:50"></div>
+      <div class="bar" style="--h:26%;--c:var(--z1);--i:51"></div>
+      <div class="bar" style="--h:24%;--c:var(--z1);--i:52"></div>
+      <div class="bar" style="--h:22%;--c:var(--z1);--i:53"></div>
+      <div class="bar" style="--h:20%;--c:var(--z1);--i:54"></div>
+      <div class="bar" style="--h:18%;--c:var(--z1);--i:55"></div>
+    </div>
+
+    <div class="profile-axis mono">
+      <span>0:00</span><span>10:00</span><span>20:00</span><span>30:00</span>
+      <span>40:00</span><span>50:00</span><span>62:00</span>
+    </div>
+  </figure>
 </header>
 
-<!-- ═══ Features ═══ -->
-<section id="features">
+<section id="what">
   <div class="wrap">
-    <div class="sec-label">Everything you need</div>
-    <h2 class="sec-title">Built like the platforms you pay for</h2>
-    <p class="sec-sub">Smart trainer control, adaptive planning, and serious ride analytics — no paywall between you and your fitness.</p>
+    <div class="sec-head">
+      <h2>The parts you'd otherwise pay a subscription for.</h2>
+      <p>
+        No feature is held back, metered, or reserved for a paid tier — there isn't one.
+      </p>
+    </div>
 
-    <div class="features">
-      <div class="feature">
-        <div class="feature-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-        </div>
-        <h3>ERG Mode Control</h3>
-        <p>FreeTrain locks your trainer to the target power of every interval over Bluetooth FTMS. Just pedal — the resistance is handled for you.</p>
+    <dl class="specs">
+      <div class="spec">
+        <dt>ERG mode control</dt>
+        <dd>Holds your trainer at each interval's target power over Bluetooth FTMS, so the resistance follows the workout instead of your legs.</dd>
       </div>
-
-      <div class="feature">
-        <div class="feature-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-        </div>
-        <h3>Adaptive Training Plans</h3>
-        <p>Answer five questions and get a periodized 6-week plan. FreeTrain watches your adherence and automatically adjusts upcoming workouts.</p>
+      <div class="spec">
+        <dt>Plans that adapt</dt>
+        <dd>Tell the coach your goal and your week, and it writes a periodized plan of any length. It then reshapes upcoming sessions around what you actually completed and how hard it felt.</dd>
       </div>
-
-      <div class="feature">
-        <div class="feature-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>
-        </div>
-        <h3>Real Ride Analytics</h3>
-        <p>Normalized Power, Intensity Factor, and TSS calculated properly on every ride — the same metrics coaches use to measure training load.</p>
+      <div class="spec">
+        <dt>Training load, done properly</dt>
+        <dd>Normalized Power, Intensity Factor and TSS computed the way coaches expect — plus weekly load, adherence and time-in-zone.</dd>
       </div>
-
-      <div class="feature">
-        <div class="feature-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-        </div>
-        <h3>Calendar Planning</h3>
-        <p>Drag workouts onto a monthly calendar, see completed rides at a glance, and load today's session with one click when you're ready to ride.</p>
+      <div class="spec">
+        <dt>One calendar, four sports</dt>
+        <dd>Rides, runs, swims and lifts share a single calendar, so you can see a heavy Saturday coming before you schedule anything against it.</dd>
       </div>
-
-      <div class="feature">
-        <div class="feature-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
-        </div>
-        <h3>Workout Builder</h3>
-        <p>Design your own intervals with a live power-profile preview. Save anything from openers to over-unders and reuse them across your plan.</p>
+      <div class="spec">
+        <dt>Workout builder</dt>
+        <dd>Build intervals against a live power profile, then save and reuse them anywhere in your plan.</dd>
       </div>
+      <div class="spec">
+        <dt>Strava sync</dt>
+        <dd>Completed rides upload with full power data. Activities you record elsewhere come back in and count toward your plan.</dd>
+      </div>
+    </dl>
+  </div>
+</section>
 
-      <div class="feature">
-        <div class="feature-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>
-        </div>
-        <h3>Strava &amp; Sync</h3>
-        <p>Completed rides upload to Strava automatically with full power data, and your workouts, plans, and history follow your account everywhere.</p>
+<section id="disciplines" style="padding-top:0">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Four disciplines, one training load.</h2>
+      <p>Each sport is planned on the terms it's actually measured in, and all of it lands on the same calendar.</p>
+    </div>
+
+    <div class="disciplines">
+      <div class="discipline" style="--c:var(--bike)">
+        <h3>Cycling</h3>
+        <p>ERG-controlled interval sessions built around your FTP.</p>
+      </div>
+      <div class="discipline" style="--c:var(--run)">
+        <h3>Running</h3>
+        <p>Mileage plans that watch your weekly ramp rate, road or trail.</p>
+      </div>
+      <div class="discipline" style="--c:var(--swim)">
+        <h3>Swimming</h3>
+        <p>Technique, threshold and endurance sets by weekly volume.</p>
+      </div>
+      <div class="discipline" style="--c:var(--strength)">
+        <h3>Strength</h3>
+        <p>A rotating upper, lower and full-body block that paces itself to your effort.</p>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ═══ Get started ═══ -->
-<section id="get-started" style="padding-top:20px">
+<section id="platforms" style="padding-top:0">
   <div class="wrap">
-    <div class="sec-label">Get started</div>
-    <h2 class="sec-title">Ride where you want</h2>
-    <p class="sec-sub">Same account, same workouts, same plan — pick the way you want to train today.</p>
+    <div class="sec-head">
+      <h2>Start in the browser.</h2>
+      <p>One account, whichever way you train.</p>
+    </div>
 
     <div class="platforms">
-      <div class="platform highlight">
-        <span class="platform-badge">Available now</span>
-        <h3>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-          FreeTrain Web
-        </h3>
-        <p>Nothing to install. Create a free account, connect your trainer over Bluetooth, and start your first workout in under a minute.</p>
+      <div class="platform">
+        <h3>Web <span class="status">Available now</span></h3>
+        <p>Create an account, pair your trainer over Bluetooth, and start a workout in about a minute.</p>
         <ul>
-          <li>Runs entirely in your browser</li>
-          <li>Bluetooth trainer connection with ERG mode</li>
-          <li>Full training plans, builder, and analytics</li>
-          <li>Requires Chrome or Edge on desktop</li>
+          <li>Nothing to install</li>
+          <li>Bluetooth trainer pairing with ERG control</li>
+          <li>Full plans, builder and analytics</li>
+          <li>Chrome or Edge on desktop</li>
         </ul>
-        <a class="btn btn-primary" href="/app">Create a Free Account</a>
-        <p class="platform-note">Already have an account? The same link signs you in.</p>
+        <a class="btn btn-primary" href="/app">Create a free account</a>
       </div>
 
-      <div class="platform">
-        <h3>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-          FreeTrain Desktop
-        </h3>
-        <p>A native app with its own Bluetooth stack — for maximum device compatibility in any browser-free setup.</p>
+      <div class="platform muted">
+        <h3>Desktop <span class="status">In progress</span></h3>
+        <p>A native app with its own Bluetooth stack, for setups where the browser gets in the way.</p>
         <ul>
-          <li>Works regardless of browser</li>
-          <li>Broader Bluetooth device support</li>
-          <li>Same account and synced training data</li>
-          <li>macOS first, Windows to follow</li>
+          <li>Works without a browser</li>
+          <li>Wider device compatibility</li>
+          <li>Same account, same history</li>
+          <li>macOS first, then Windows</li>
         </ul>
-        <button class="btn btn-ghost" disabled>
-          Download for Desktop
-          <span class="soon-tag">Coming Soon</span>
-        </button>
-        <p class="platform-note">In the meantime, the web app has you covered.</p>
+        <a class="btn btn-quiet" href="/app">Use the web app meanwhile</a>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ═══ Bottom CTA ═══ -->
-<section class="bottom-cta">
+<section class="close">
   <div class="wrap">
-    <h2>Your next FTP starts today.</h2>
-    <p>Free forever. No credit card, no trial clock, no locked features.</p>
-    <a class="btn btn-primary" href="/app">
-      Start Training
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-    </a>
+    <h2>Your next block starts whenever you do.</h2>
+    <p>Free, with no paid tier to graduate to. Bring a trainer and an hour.</p>
+    <a class="btn btn-primary" href="/app">Open FreeTrain</a>
   </div>
 </section>
 
-<!-- ═══ Footer ═══ -->
 <footer>
   <div class="wrap footer-inner">
-    <a class="brand" href="/"><span class="accent-word">Free</span>Train</a>
-    <span>© 2026 FreeTrain</span>
+    <a class="brand" href="/">FreeTrain</a>
+    <span>&copy; 2026</span>
     <div class="footer-right">
-      <a href="#features">Features</a>
-      <a href="/app">Launch App</a>
+      <a href="#what">What it does</a>
+      <a href="/app">Open app</a>
     </div>
   </div>
 </footer>
