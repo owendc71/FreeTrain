@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FreeTrain — Structured training that costs nothing</title>
+  <title>FreeTrain. Structured training that costs nothing</title>
   <meta name="description" content="FreeTrain is free training software for cyclists, runners, swimmers and lifters. ERG smart-trainer control, plans that adapt to how your training actually goes, and the training-load metrics coaches use.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b0d0f'/%3E%3Cpolyline points='27 16 22.5 16 19 25 12 7 8.5 16 5 16' fill='none' stroke='%2322c55e' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13,28 +13,31 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      /* Ground is neutral graphite on purpose: colour in this page only
-         ever encodes data, never mood. */
-      --ink:    #0B0D0F;
-      --raise:  #141719;
-      --line:   #22282B;
-      --line-2: #2E3639;
-      --text:   #E9EEEB;
-      --dim:    #7E8B86;
+      /* Ground is neutral on purpose: colour on this page only ever
+         encodes data, never mood. Same green as the app itself. */
+      --ink:    #F4F9F5;
+      --raise:  #FFFFFF;
+      --line:   rgba(0,0,0,.08);
+      --line-2: rgba(0,0,0,.16);
+      --text:   #0D1A0D;
+      --dim:    #4D6B4D;
 
-      /* Intensity ramp — one hue, lighter = harder. Used only in the
-         power profile. */
-      --z1: #1C3A2A;
-      --z2: #2A6B45;
-      --z3: #22C55E;
-      --z4: #4ADE80;
-      --z5: #A7F3C0;
+      --brand:     #16A34A;
+      --brand-dim: #15803D;
 
-      /* Discipline hues — the app's own. Used only in the discipline row. */
-      --bike:     #22C55E;
-      --run:      #14B8A6;
-      --swim:     #38BDF8;
-      --strength: #A78BFA;
+      /* Intensity ramp: one hue, light to dark as effort rises. Used
+         only in the power profile. */
+      --z1: #DCF3E3;
+      --z2: #9FDDB4;
+      --z3: #4ADE80;
+      --z4: #16A34A;
+      --z5: #0F5C2E;
+
+      /* Discipline hues: match the app's own palette exactly. */
+      --bike:     var(--brand);
+      --run:      #0F766E;
+      --swim:     #0369A1;
+      --strength: #7C3AED;
 
       --measure: 62ch;
     }
@@ -54,7 +57,7 @@
     a { color: inherit; }
 
     :focus-visible {
-      outline: 2px solid var(--z3);
+      outline: 2px solid var(--brand);
       outline-offset: 3px;
       border-radius: 2px;
     }
@@ -69,7 +72,7 @@
     /* ── Nav ─────────────────────────────────────────────────────── */
     .nav {
       position: sticky; top: 0; z-index: 50;
-      background: rgba(11, 13, 15, 0.72);
+      background: rgba(244, 249, 245, 0.82);
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
       border-bottom: 1px solid var(--line);
@@ -99,8 +102,8 @@
       text-decoration: none; cursor: pointer; white-space: nowrap;
       transition: background .14s, border-color .14s, color .14s;
     }
-    .btn-primary { background: var(--z3); color: #06130A; }
-    .btn-primary:hover { background: var(--z4); }
+    .btn-primary { background: var(--brand); color: var(--text); }
+    .btn-primary:hover { background: var(--brand-dim); color: #FFFFFF; }
     .btn-quiet {
       background: transparent; color: var(--text);
       border-color: var(--line-2);
@@ -158,6 +161,8 @@
       min-width: 0;
       height: var(--h);
       background: var(--c);
+      border: 1px solid rgba(0,0,0,.06);
+      border-bottom: none;
       border-radius: 2px 2px 0 0;
       transform-origin: bottom;
     }
@@ -299,7 +304,7 @@
     <p class="lede">
       FreeTrain drives your smart trainer in ERG mode, builds plans that adjust to
       how your training actually goes, and computes the same training-load numbers
-      your coach would — across cycling, running, swimming and strength.
+      your coach would. All of it spans cycling, running, swimming and strength.
     </p>
     <div class="hero-actions">
       <a class="btn btn-primary" href="/app">Open FreeTrain</a>
@@ -389,7 +394,7 @@
     <div class="sec-head">
       <h2>The parts you'd otherwise pay a subscription for.</h2>
       <p>
-        No feature is held back, metered, or reserved for a paid tier — there isn't one.
+        No feature is held back, metered, or reserved for a paid tier. There isn't one.
       </p>
     </div>
 
@@ -404,7 +409,7 @@
       </div>
       <div class="spec">
         <dt>Training load, done properly</dt>
-        <dd>Normalized Power, Intensity Factor and TSS computed the way coaches expect — plus weekly load, adherence and time-in-zone.</dd>
+        <dd>Normalized Power, Intensity Factor and TSS computed the way coaches expect, plus weekly load, adherence and time-in-zone.</dd>
       </div>
       <div class="spec">
         <dt>One calendar, four sports</dt>
