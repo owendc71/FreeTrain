@@ -1606,3 +1606,104 @@ input::placeholder { color: var(--text-3); }
   line-height: 1.45;
   white-space: pre-wrap;
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   Mobile
+   Appended last so these overrides win the cascade at equal specificity.
+   Breakpoints: 820px (tablet / small laptop) and 560px (phone).
+═══════════════════════════════════════════════════════════════════ */
+
+/* ── Tablet and below ─────────────────────────────────────────────── */
+@media (max-width: 820px) {
+
+  /* The header holds a logo, eight tabs and a status cluster — roughly
+     950px of content. Without min-width:0 the nav can't shrink below its
+     content, so the last tabs overflow a hidden-overflow body and become
+     unreachable. Scroll the strip instead of clipping it. */
+  .app-header { padding: 0 12px; }
+  .logo { margin-right: 14px; }
+
+  .tab-nav {
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;                 /* Firefox */
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+  }
+  .tab-nav::-webkit-scrollbar { display: none; }
+  .tab-btn { padding: 0 11px; scroll-snap-align: start; }
+
+  /* Username is redundant next to the Sign Out control on a narrow bar. */
+  #header-username { display: none; }
+
+  .tab-content { padding: 18px 16px; }
+
+  /* Career-total strips wrap to two rows rather than crushing to slivers. */
+  .history-summary { flex-wrap: wrap; row-gap: 16px; }
+  .hs-stat { flex: 1 0 44%; }
+  .hs-stat:nth-child(2n) { border-right: none; }
+
+  /* .coach-layout already collapses at 900px; only the panel height
+     needs adjusting once the calendar is stacked beneath the chat. */
+  .coach-panel { height: 460px; max-height: 62vh; }
+}
+
+/* ── Phone ────────────────────────────────────────────────────────── */
+@media (max-width: 560px) {
+
+  .tab-content { padding: 14px 12px; }
+
+  /* Seven columns on a ~390px screen leaves ~45px per cell, far too narrow
+     for chip labels. Drop the text and keep each chip as a coloured bar, so
+     the day still shows which disciplines are scheduled; tapping the cell
+     opens the detail modal for the specifics. */
+  .cal-cell { min-height: 58px; padding: 5px 4px; gap: 3px; }
+  .cal-day-num { font-size: 11px; }
+  .cal-chip {
+    height: 5px;
+    padding: 0;
+    font-size: 0;                          /* collapses the label, keeps the bar */
+    line-height: 0;
+    border-radius: 2px;
+  }
+  .cal-chip-run, .cal-chip-swim, .cal-chip-strength { margin-top: 0; }
+  .cal-dots { gap: 2px; padding-top: 2px; }
+  .cal-dot { width: 5px; height: 5px; }
+  .cal-weekday-row > div { font-size: 9px; letter-spacing: .04em; }
+
+  .planner-header { flex-wrap: wrap; gap: 8px; }
+  .planner-header h2 { font-size: 1.05rem; }
+
+  /* Live metrics already scroll horizontally; just stop the numerals from
+     dominating the viewport. */
+  .metric-value { font-size: 26px; }
+  .metric { min-width: 68px; padding: 0 8px; }
+
+  .ride-card { padding: 13px 15px; }
+  .ride-card-stats { gap: 14px; margin-top: 10px; padding-top: 10px; }
+
+  .day-modal-card { padding: 20px 18px 16px; gap: 14px; }
+  .day-modal-actions { flex-wrap: wrap; }
+  .day-modal-actions .btn { flex: 1 0 auto; }
+
+  .auth-card { padding: 28px 22px 22px; gap: 18px; }
+
+  .coach-panel { height: auto; max-height: none; min-height: 420px; }
+  .coach-messages { max-height: 46vh; }
+
+  .dash-section-title { margin: 24px 0 10px; }
+  .upcoming-card { padding: 11px 12px; gap: 10px; }
+  .upcoming-when { padding: 3px 8px; }
+}
+
+/* ── Touch targets ────────────────────────────────────────────────── */
+/* Coarse pointers need ~44px of hit area; several controls are drawn well
+   under that. Grow the touchable box without changing the visual size. */
+@media (pointer: coarse) {
+  .tab-btn { min-height: 46px; }
+  .btn-adj, .btn-sm, .coach-restart-btn { min-height: 38px; }
+  .btn { min-height: 42px; }
+  .cal-cell { min-height: 62px; }
+  .coach-quick-reply-btn { min-height: 40px; }
+}

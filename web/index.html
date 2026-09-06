@@ -280,6 +280,38 @@
     .footer-right { margin-left: auto; display: flex; gap: 20px; }
     .footer-right a { text-decoration: none; transition: color .15s; }
     .footer-right a:hover { color: var(--text); }
+
+    /* ── Mobile ───────────────────────────────────────────────────── */
+    @media (max-width: 720px) {
+      .wrap { padding: 0 20px; }
+      section { padding: 64px 0; }
+      .hero { padding: 64px 0 0; }
+      .sec-head { margin-bottom: 32px; }
+      .profile { margin-top: 52px; }
+
+      /* 56 bars across a phone leaves ~5px each; a tighter gap keeps the
+         interval structure legible instead of half gap, half bar. */
+      .profile-plot { gap: 1px; }
+
+      .platform { padding: 22px 20px 24px; }
+      .close .btn { margin-top: 24px; width: 100%; }
+      .hero-actions .btn { flex: 1 0 auto; }
+    }
+
+    @media (max-width: 420px) {
+      .wrap { padding: 0 16px; }
+      .profile { padding: 0 10px; }
+      /* Show only the endpoints; intermediate ticks collide below this. */
+      .profile-axis span:not(:first-child):not(:last-child) { display: none; }
+      .footer-right { margin-left: 0; width: 100%; }
+    }
+
+    /* Coarse pointers need a bigger hit area than the visual button size. */
+    @media (pointer: coarse) {
+      .btn { min-height: 44px; }
+      .btn-sm { min-height: 38px; }
+      .nav-links a { padding: 6px 0; }
+    }
   </style>
 </head>
 <body>
