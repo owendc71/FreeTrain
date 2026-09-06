@@ -34,6 +34,19 @@ const RunPlanWebEngine = (() => {
   };
 
   const DEFAULT_PACE_SEC_PER_KM = 375.0;
+  const MILE_M            = 1609.34;
+  const RUN_DIST_STEP_M   = MILE_M / 2;
+  const DURATION_STEP_MIN = 5;
+
+  // Plans are prescriptions, not measurements: a coach writes "6 miles",
+  // never "7.1 miles". Targets snap to a readable grid at generation and
+  // again after adaptation rescales them. Mirrors snap_to() in
+  // server/run_plan_engine.py.
+  function snapTo(value, step, minimum) {
+    if (!(step > 0)) return value;
+    return Math.max(minimum || 0, Math.round(value / step) * step);
+  }
+
 
   // Plan length. Mirrors run_plan_engine.py.
   const DEFAULT_WEEKS = 6;
@@ -115,8 +128,9 @@ const RunPlanWebEngine = (() => {
     factors.forEach(wf => {
       const weekM = baseWeekly * wf;
       slots.forEach(([rtype, weight]) => {
-        const distM   = Math.round(weekM * weight);
-        const durMin  = Math.round((distM / 1000) * (pace * PACE_MULT[rtype]) / 60 * 10) / 10;
+        const distM   = Math.round(snapTo(weekM * weight, RUN_DIST_STEP_M, RUN_DIST_STEP_M));
+        const rawMin  = (distM / 1000) * (pace * PACE_MULT[rtype]) / 60;
+        const durMin  = snapTo(rawMin, DURATION_STEP_MIN, DURATION_STEP_MIN);
         entries.push({
           run_type:            rtype,
           target_distance_m:   distM,
@@ -228,8 +242,8 @@ const RunPlanWebEngine = (() => {
     const e = { ...entry };
     const dist = e.target_distance_m || 0;
     const dur  = e.target_duration_min || 0;
-    if (dist > 0) e.target_distance_m   = Math.max(Math.round(dist * (1 + factor)), 800);
-    if (dur  > 0) e.target_duration_min = Math.round(dur * (1 + factor) * 10) / 10;
+    if (dist > 0) e.target_distance_m   = Math.round(snapTo(dist * (1 + factor), RUN_DIST_STEP_M, RUN_DIST_STEP_M));
+    if (dur  > 0) e.target_duration_min = snapTo(dur * (1 + factor), DURATION_STEP_MIN, DURATION_STEP_MIN);
     return e;
   }
 

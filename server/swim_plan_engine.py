@@ -15,7 +15,9 @@ from __future__ import annotations
 from datetime import date, timedelta
 from typing import Optional
 
-from run_plan_engine import resolve_days
+from run_plan_engine import (
+    DURATION_STEP_MIN, resolve_days, round_half_up, snap_swim_step, snap_to,
+)
 
 # Goals that finish with a taper rather than a peak week.
 _RACE_GOALS = {"distance_event", "race_prep", "triathlon"}
@@ -121,8 +123,10 @@ def generate_swim_plan(
     for wf in factors:
         week_m = base_weekly * wf
         for stype, weight in slots:
-            dist_m  = max(round(week_m * weight), _DISTANCE_FLOOR_M)
-            dur_min = round((dist_m / 100) * (pace * _PACE_MULT[stype]) / 60, 1)
+            raw_m   = max(week_m * weight, _DISTANCE_FLOOR_M)
+            dist_m  = round_half_up(snap_to(raw_m, snap_swim_step(raw_m), _DISTANCE_FLOOR_M))
+            raw_min = (dist_m / 100) * (pace * _PACE_MULT[stype]) / 60
+            dur_min = snap_to(raw_min, DURATION_STEP_MIN, DURATION_STEP_MIN)
             entries.append({
                 "swim_type":           stype,
                 "target_distance_m":   dist_m,
@@ -263,7 +267,8 @@ def apply_swim_adaptation(entry: dict, factor: float) -> dict:
     dist = e.get("target_distance_m") or 0
     dur  = e.get("target_duration_min") or 0
     if dist > 0:
-        e["target_distance_m"] = max(round(dist * (1 + factor)), _DISTANCE_FLOOR_M)
+        scaled = dist * (1 + factor)
+        e["target_distance_m"] = round_half_up(snap_to(scaled, snap_swim_step(scaled), _DISTANCE_FLOOR_M))
     if dur > 0:
-        e["target_duration_min"] = round(dur * (1 + factor), 1)
+        e["target_duration_min"] = snap_to(dur * (1 + factor), DURATION_STEP_MIN, DURATION_STEP_MIN)
     return e

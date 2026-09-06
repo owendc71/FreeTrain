@@ -42,6 +42,20 @@ const SwimPlanWebEngine = (() => {
   };
 
   const DEFAULT_PACE_SEC_PER_100M = 120.0;
+  const DURATION_STEP_MIN = 5;
+
+  // Plans are prescriptions, not measurements: a coach writes "6 miles",
+  // never "7.1 miles". Targets snap to a readable grid at generation and
+  // again after adaptation rescales them. Mirrors snap_to() in
+  // server/run_plan_engine.py.
+  function snapTo(value, step, minimum) {
+    if (!(step > 0)) return value;
+    return Math.max(minimum || 0, Math.round(value / step) * step);
+  }
+
+  // Pools are 25/50m; sets are written in round hundreds.
+  function swimStep(m) { return m >= 400 ? 100 : 50; }
+
 
   const DEFAULT_WEEKS = 6;
   const MIN_WEEKS     = 1;
@@ -122,8 +136,10 @@ const SwimPlanWebEngine = (() => {
     factors.forEach(wf => {
       const weekM = baseWeekly * wf;
       slots.forEach(([stype, weight]) => {
-        const distM  = Math.max(Math.round(weekM * weight), DISTANCE_FLOOR_M);
-        const durMin = Math.round((distM / 100) * (pace * PACE_MULT[stype]) / 60 * 10) / 10;
+        const rawM   = Math.max(weekM * weight, DISTANCE_FLOOR_M);
+        const distM  = Math.round(snapTo(rawM, swimStep(rawM), DISTANCE_FLOOR_M));
+        const rawMin = (distM / 100) * (pace * PACE_MULT[stype]) / 60;
+        const durMin = snapTo(rawMin, DURATION_STEP_MIN, DURATION_STEP_MIN);
         entries.push({
           swim_type:           stype,
           target_distance_m:   distM,
@@ -232,8 +248,11 @@ const SwimPlanWebEngine = (() => {
     const e = { ...entry };
     const dist = e.target_distance_m || 0;
     const dur  = e.target_duration_min || 0;
-    if (dist > 0) e.target_distance_m   = Math.max(Math.round(dist * (1 + factor)), DISTANCE_FLOOR_M);
-    if (dur  > 0) e.target_duration_min = Math.round(dur * (1 + factor) * 10) / 10;
+    if (dist > 0) {
+      const scaled = dist * (1 + factor);
+      e.target_distance_m = Math.round(snapTo(scaled, swimStep(scaled), DISTANCE_FLOOR_M));
+    }
+    if (dur  > 0) e.target_duration_min = snapTo(dur * (1 + factor), DURATION_STEP_MIN, DURATION_STEP_MIN);
     return e;
   }
 

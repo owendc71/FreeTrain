@@ -13,6 +13,19 @@ const PlanWebEngine = (() => {
   const DEFAULT_WEEKS  = 6;
   const MIN_WEEKS      = 1;
   const MAX_WEEKS      = 24;
+  const DURATION_STEP_MIN = 5;
+
+  // Plans are prescriptions, not measurements: a coach writes "6 miles",
+  // never "7.1 miles". Targets snap to a readable grid at generation and
+  // again after adaptation rescales them. Mirrors snap_to() in
+  // server/run_plan_engine.py.
+  function snapTo(value, step, minimum) {
+    if (!(step > 0)) return value;
+    return Math.max(minimum || 0, Math.round(value / step) * step);
+  }
+
+  const mins = raw => Math.round(snapTo(raw, DURATION_STEP_MIN, 30));
+
 
   // ── Interval primitives ─────────────────────────────────────────
   // power_pct is a fraction of FTP (0.65 = 65%) to match user-created
@@ -101,10 +114,10 @@ const PlanWebEngine = (() => {
     'vo2_5x4':        () => wVO2(5, 4, 70),
   };
   const VARIABLE = {
-    'endurance_easy': m => wEndurance(Math.max(Math.round(m * 0.75), 30)),
-    'endurance':      m => wEndurance(m),
-    'endurance_long': m => wEndurance(Math.round(m * 1.35)),
-    'endurance_xl':   m => wEndurance(Math.round(m * 1.65)),
+    'endurance_easy': m => wEndurance(mins(m * 0.75)),
+    'endurance':      m => wEndurance(mins(m)),
+    'endurance_long': m => wEndurance(mins(m * 1.35)),
+    'endurance_xl':   m => wEndurance(mins(m * 1.65)),
   };
 
   function buildSession(type, baseMins) {

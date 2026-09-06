@@ -19,7 +19,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 from typing import Optional
 
-from run_plan_engine import resolve_days
+from run_plan_engine import DURATION_STEP_MIN, resolve_days, round_half_up, snap_to
 
 # Goals that finish with a deload rather than a peak week.
 _TAPER_GOALS = {"event_prep", "peak_strength"}
@@ -109,7 +109,7 @@ def generate_strength_plan(
     for wf in factors:
         for focus in pattern_focus:
             mins = base_mins * wf * _FOCUS_DURATION_MULT[focus]
-            mins = max(_MIN_SESSION, min(round(mins), _MAX_SESSION))
+            mins = round_half_up(min(snap_to(mins, DURATION_STEP_MIN, _MIN_SESSION), _MAX_SESSION))
             entries.append({
                 "focus":               focus,
                 "target_duration_min": mins,
@@ -238,5 +238,6 @@ def apply_strength_adaptation(entry: dict, factor: float) -> dict:
     e = dict(entry)
     dur = e.get("target_duration_min") or 0
     if dur > 0:
-        e["target_duration_min"] = max(_MIN_SESSION, min(round(dur * (1 + factor)), _MAX_SESSION))
+        e["target_duration_min"] = round_half_up(min(
+            snap_to(dur * (1 + factor), DURATION_STEP_MIN, _MIN_SESSION), _MAX_SESSION))
     return e

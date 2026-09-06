@@ -92,8 +92,8 @@ class CalendarPlanner {
         const chip = document.createElement('div');
         chip.className   = 'cal-chip cal-chip-run';
         const label = (typeof RUN_TYPE_LABELS !== 'undefined' && RUN_TYPE_LABELS[runEntry.run_type]) || runEntry.run_type;
-        const miles = runEntry.target_distance_m ? (runEntry.target_distance_m / 1609.34).toFixed(1) : null;
-        chip.textContent = `🏃 ${label}${miles ? ` · ${miles}mi` : ''}`;
+        const miles = TargetFormat.runDistance(runEntry.target_distance_m, { short: true });
+        chip.textContent = `🏃 ${label}${miles ? ` · ${miles}` : ''}`;
         chip.addEventListener('click', e => {
           e.stopPropagation();
           this._openEntryModal('run', dateStr, runEntry);
@@ -107,11 +107,7 @@ class CalendarPlanner {
         const chip = document.createElement('div');
         chip.className = 'cal-chip cal-chip-swim';
         const label = (typeof SWIM_TYPE_LABELS !== 'undefined' && SWIM_TYPE_LABELS[swimEntry.swim_type]) || swimEntry.swim_type;
-        const dist  = swimEntry.target_distance_m
-          ? (swimEntry.target_distance_m >= 1000
-              ? `${(swimEntry.target_distance_m / 1000).toFixed(1)}km`
-              : `${Math.round(swimEntry.target_distance_m)}m`)
-          : null;
+        const dist = TargetFormat.swimDistance(swimEntry.target_distance_m, { short: true });
         chip.textContent = `🏊 ${label}${dist ? ` · ${dist}` : ''}`;
         chip.addEventListener('click', e => {
           e.stopPropagation();
@@ -126,8 +122,8 @@ class CalendarPlanner {
         const chip = document.createElement('div');
         chip.className = 'cal-chip cal-chip-strength';
         const label = (typeof STRENGTH_FOCUS_LABELS !== 'undefined' && STRENGTH_FOCUS_LABELS[strengthEntry.focus]) || strengthEntry.focus;
-        const mins  = strengthEntry.target_duration_min ? ` · ${Math.round(strengthEntry.target_duration_min)}min` : '';
-        chip.textContent = `🏋 ${label}${mins}`;
+        const mins = TargetFormat.duration(strengthEntry.target_duration_min, { short: true });
+        chip.textContent = `🏋 ${label}${mins ? ` · ${mins}` : ''}`;
         chip.addEventListener('click', e => {
           e.stopPropagation();
           this._openEntryModal('strength', dateStr, strengthEntry);
@@ -285,22 +281,18 @@ class CalendarPlanner {
       const label = (typeof RUN_TYPE_LABELS !== 'undefined' && RUN_TYPE_LABELS[entry.run_type]) || entry.run_type;
       rows = [
         ['Type', label],
-        entry.target_distance_m   && ['Distance', `${(entry.target_distance_m / 1609.34).toFixed(1)} mi`],
-        entry.target_duration_min && ['Duration', fmtTime(Math.round(entry.target_duration_min * 60))],
+        entry.target_distance_m   && ['Distance', TargetFormat.runDistance(entry.target_distance_m)],
+        entry.target_duration_min && ['Duration', TargetFormat.duration(entry.target_duration_min)],
         entry.description         && ['Notes', entry.description],
       ];
     } else if (kind === 'swim') {
       icon = '🏊';
       const label = (typeof SWIM_TYPE_LABELS !== 'undefined' && SWIM_TYPE_LABELS[entry.swim_type]) || entry.swim_type;
-      const dist = entry.target_distance_m
-        ? (entry.target_distance_m >= 1000
-            ? `${(entry.target_distance_m / 1000).toFixed(1)} km`
-            : `${Math.round(entry.target_distance_m)} m`)
-        : null;
+      const dist = TargetFormat.swimDistance(entry.target_distance_m);
       rows = [
         ['Type', label],
         dist                      && ['Distance', dist],
-        entry.target_duration_min && ['Duration', fmtTime(Math.round(entry.target_duration_min * 60))],
+        entry.target_duration_min && ['Duration', TargetFormat.duration(entry.target_duration_min)],
         entry.description         && ['Notes', entry.description],
       ];
     } else if (kind === 'strength') {
@@ -308,7 +300,7 @@ class CalendarPlanner {
       const label = (typeof STRENGTH_FOCUS_LABELS !== 'undefined' && STRENGTH_FOCUS_LABELS[entry.focus]) || entry.focus;
       rows = [
         ['Focus', label],
-        entry.target_duration_min && ['Duration', fmtTime(Math.round(entry.target_duration_min * 60))],
+        entry.target_duration_min && ['Duration', TargetFormat.duration(entry.target_duration_min)],
         entry.description         && ['Notes', entry.description],
       ];
     }

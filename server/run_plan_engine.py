@@ -9,6 +9,8 @@ power since there's no live-executed running workout.
 
 from __future__ import annotations
 
+import math
+
 from datetime import date, timedelta
 from typing import Optional
 
@@ -79,6 +81,40 @@ def week_factors(weeks: int, taper: bool) -> list[float]:
 
 # ── Public API ──────────────────────────────────────────────────────
 
+MILE_M = 1609.34
+
+# Snapping grids. Plans are prescriptions, not measurements: a coach writes
+# "6 miles", never "7.1 miles". Targets are rounded to the grid the athlete
+# would actually read, at generation AND after adaptation rescales them.
+RUN_DIST_STEP_M = MILE_M / 2      # half a mile
+DURATION_STEP_MIN = 5
+
+
+def round_half_up(value: float) -> int:
+    """
+    Round halves upward, matching JavaScript's Math.round().
+
+    Python's built-in round() uses banker's rounding (half-to-even) and
+    int() truncates, so either would silently diverge from the JS twins
+    on exact .5 boundaries and on the final metre. Plans must be
+    identical in both builds.
+    """
+    return math.floor(value + 0.5)
+
+
+def snap_to(value: float, step: float, minimum: float = 0.0) -> float:
+    """Round to the nearest `step`, never returning below `minimum`."""
+    if step <= 0:
+        return value
+    return max(minimum, round_half_up(value / step) * step)
+
+
+def snap_swim_step(dist_m: float) -> int:
+    """Pools are 25/50m; sets are written in round hundreds, except very
+    short ones where 50m granularity still reads naturally."""
+    return 100 if dist_m >= 400 else 50
+
+
 def resolve_days(days, days_per_week: int, lo: int, hi: int,
                  fallback: dict[int, list[int]]) -> tuple[list[int], int]:
     """
@@ -135,8 +171,9 @@ def generate_run_plan(
     for wf in factors:
         week_m = base_weekly * wf
         for rtype, weight in slots:
-            dist_m  = round(week_m * weight)
-            dur_min = round((dist_m / 1000) * (pace * _PACE_MULT[rtype]) / 60, 1)
+            dist_m  = round_half_up(snap_to(week_m * weight, RUN_DIST_STEP_M, RUN_DIST_STEP_M))
+            raw_min = (dist_m / 1000) * (pace * _PACE_MULT[rtype]) / 60
+            dur_min = snap_to(raw_min, DURATION_STEP_MIN, DURATION_STEP_MIN)
             entries.append({
                 "run_type":            rtype,
                 "target_distance_m":   dist_m,
@@ -281,7 +318,7 @@ def apply_run_adaptation(entry: dict, factor: float) -> dict:
     dist = e.get("target_distance_m") or 0
     dur  = e.get("target_duration_min") or 0
     if dist > 0:
-        e["target_distance_m"] = max(round(dist * (1 + factor)), 800)   # floor ~0.5mi
+        e["target_distance_m"] = round_half_up(snap_to(dist * (1 + factor), RUN_DIST_STEP_M, RUN_DIST_STEP_M))
     if dur > 0:
-        e["target_duration_min"] = round(dur * (1 + factor), 1)
+        e["target_duration_min"] = snap_to(dur * (1 + factor), DURATION_STEP_MIN, DURATION_STEP_MIN)
     return e

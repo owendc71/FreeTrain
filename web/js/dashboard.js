@@ -113,7 +113,7 @@ class TrainingDashboard {
     Object.entries(this._runPlan).forEach(([dateStr, e]) => {
       if (!e || dateStr < todayIso || !(e.target_distance_m || e.target_duration_min)) return;
       const label = (typeof RUN_TYPE_LABELS !== 'undefined' && RUN_TYPE_LABELS[e.run_type]) || e.run_type || 'Run';
-      const miles = e.target_distance_m ? `${(e.target_distance_m / 1609.34).toFixed(1)} mi` : null;
+      const miles = TargetFormat.runDistance(e.target_distance_m);
       items.push({
         date: dateStr, icon: '🏃', kind: 'Running', disciplineKey: 'run', entry: e,
         title: label,
@@ -124,9 +124,7 @@ class TrainingDashboard {
     Object.entries(this._swimPlan).forEach(([dateStr, e]) => {
       if (!e || dateStr < todayIso || !(e.target_distance_m || e.target_duration_min)) return;
       const label = (typeof SWIM_TYPE_LABELS !== 'undefined' && SWIM_TYPE_LABELS[e.swim_type]) || e.swim_type || 'Swim';
-      const dist = e.target_distance_m
-        ? (e.target_distance_m >= 1000 ? `${(e.target_distance_m / 1000).toFixed(1)} km` : `${Math.round(e.target_distance_m)} m`)
-        : null;
+      const dist = TargetFormat.swimDistance(e.target_distance_m);
       items.push({
         date: dateStr, icon: '🏊', kind: 'Swimming', disciplineKey: 'swim', entry: e,
         title: label,
@@ -140,7 +138,7 @@ class TrainingDashboard {
       items.push({
         date: dateStr, icon: '🏋', kind: 'Strength', disciplineKey: 'strength', entry: e,
         title: label,
-        detail: `${Math.round(e.target_duration_min)} min`,
+        detail: TargetFormat.duration(e.target_duration_min),
       });
     });
 

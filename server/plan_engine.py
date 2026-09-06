@@ -11,7 +11,7 @@ import copy
 from datetime import date, timedelta
 from typing import Optional
 
-from run_plan_engine import resolve_days
+from run_plan_engine import DURATION_STEP_MIN, resolve_days, round_half_up, snap_to
 
 # Plan length. The session-type templates below are authored as six
 # weeks; _resequence_weeks() re-flows them to any requested length.
@@ -142,11 +142,17 @@ _FIXED: dict[str, callable] = {
 }
 
 # Variable-duration sessions (scale with the user's session_mins preference)
+# Session lengths land on a 5-minute grid so plans read "Endurance 80min"
+# rather than "Endurance 81min".
+def _mins(raw: float) -> int:
+    return round_half_up(snap_to(raw, DURATION_STEP_MIN, 30))
+
+
 _VARIABLE: dict[str, callable] = {
-    "endurance_easy": lambda m: w_endurance(max(int(m * 0.75), 30)),
-    "endurance":      lambda m: w_endurance(m),
-    "endurance_long": lambda m: w_endurance(int(m * 1.35)),
-    "endurance_xl":   lambda m: w_endurance(int(m * 1.65)),
+    "endurance_easy": lambda m: w_endurance(_mins(m * 0.75)),
+    "endurance":      lambda m: w_endurance(_mins(m)),
+    "endurance_long": lambda m: w_endurance(_mins(m * 1.35)),
+    "endurance_xl":   lambda m: w_endurance(_mins(m * 1.65)),
 }
 
 

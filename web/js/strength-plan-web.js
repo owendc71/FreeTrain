@@ -42,6 +42,17 @@ const StrengthPlanWebEngine = (() => {
   const WEEK_CAP             = 1.20;
   const MIN_SESSION          = 20;
   const MAX_SESSION          = 120;
+  const DURATION_STEP_MIN    = 5;
+
+  // Plans are prescriptions, not measurements: a coach writes "6 miles",
+  // never "7.1 miles". Targets snap to a readable grid at generation and
+  // again after adaptation rescales them. Mirrors snap_to() in
+  // server/run_plan_engine.py.
+  function snapTo(value, step, minimum) {
+    if (!(step > 0)) return value;
+    return Math.max(minimum || 0, Math.round(value / step) * step);
+  }
+
 
   function weekFactors(weeks, taper) {
     const out = [];
@@ -112,7 +123,7 @@ const StrengthPlanWebEngine = (() => {
     factors.forEach(wf => {
       focusPattern.forEach(focus => {
         let mins = baseMins * wf * FOCUS_DURATION_MULT[focus];
-        mins = Math.max(MIN_SESSION, Math.min(Math.round(mins), MAX_SESSION));
+        mins = Math.round(Math.min(snapTo(mins, DURATION_STEP_MIN, MIN_SESSION), MAX_SESSION));
         entries.push({
           focus,
           target_duration_min: mins,
@@ -215,7 +226,8 @@ const StrengthPlanWebEngine = (() => {
     const e = { ...entry };
     const dur = e.target_duration_min || 0;
     if (dur > 0) {
-      e.target_duration_min = Math.max(MIN_SESSION, Math.min(Math.round(dur * (1 + factor)), MAX_SESSION));
+      e.target_duration_min = Math.round(Math.min(
+        snapTo(dur * (1 + factor), DURATION_STEP_MIN, MIN_SESSION), MAX_SESSION));
     }
     return e;
   }
